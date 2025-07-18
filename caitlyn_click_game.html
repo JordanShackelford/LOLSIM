@@ -281,27 +281,35 @@ class BasicProjectile {
     const y = this.y0 + (this.y1 - this.y0) * this.t;
     ctx.save();
     
-    // Draw bullet trail
-    ctx.globalAlpha = 0.3;
+    // Draw bullet trail with glow
+    ctx.globalAlpha = 0.4;
     ctx.strokeStyle = this.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
+    ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.15), this.y0 + (this.y1 - this.y0) * (this.t - 0.15));
     ctx.lineTo(x, y);
     ctx.stroke();
     
-    // Draw bullet
+    // Draw bullet body with gradient
     ctx.globalAlpha = 1;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, this.isHeadshot ? 8 : 6);
+    gradient.addColorStop(0, this.isHeadshot ? '#ff4444' : this.color);
+    gradient.addColorStop(1, this.isHeadshot ? '#cc0000' : '#2c3e50');
+    
     ctx.beginPath();
-    ctx.arc(x, y, this.isHeadshot ? 6 : 4, 0, Math.PI * 2);
-    ctx.fillStyle = this.isHeadshot ? 'red' : this.color;
+    ctx.arc(x, y, this.isHeadshot ? 8 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
     ctx.fill();
     
     // Add bullet tip
     const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
     ctx.beginPath();
-    ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
+    ctx.arc(x + Math.cos(angle) * 10, y + Math.sin(angle) * 10, 3, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 4;
     ctx.fill();
     
     ctx.restore();
@@ -977,29 +985,52 @@ class CaitlynAI {
         ctx.restore();
         return;
       }
-      // Draw Caitlyn sprite or fallback to circle
+      // Draw Caitlyn with enhanced graphics
       const SPRITE_SIZE = 64;
       let drawX = this.x - SPRITE_SIZE / 2;
       let drawY = this.y - SPRITE_SIZE / 2;
-      // Simple attack animation: scale up when attack just triggered
+      
+      // Attack animation and effects
       let scale = 1;
       if (this.attackTimer > this.attackDelay - 0.15) scale = 1.15;
+      
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.scale(scale, scale);
       ctx.translate(-this.x, -this.y);
+      
+      // Glow effect for Caitlyn
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 20;
+      
       if (caitlynImgLoaded) {
         ctx.drawImage(caitlynImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
       } else {
-        // fallback: draw circle
+        // Enhanced fallback: draw modern circle with effects
         let gradient = ctx.createRadialGradient(cx, cy, r1, cx, cy, r2);
         gradient.addColorStop(0, this.color);
-        gradient.addColorStop(1, 'black');
+        gradient.addColorStop(0.7, this.color);
+        gradient.addColorStop(1, '#2c3e50');
+        
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(this.x, this.y, CAITLYN_RADIUS, 0, Math.PI * 2);
         ctx.fill();
+        
+        // Add border glow
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
       }
+      
+      // Add team indicator glow
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = this.team === 0 ? '#3498db' : '#e74c3c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, CAITLYN_RADIUS + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      
       ctx.restore();
       // Draw HP number
       ctx.fillStyle = 'white';
@@ -1471,21 +1502,45 @@ class QProjectile {
   }
   draw() {
     ctx.save();
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.8;
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    // Draw Q body - make it thicker and more distinct
+    
+    // Draw Q body with enhanced effects
     ctx.shadowColor = '#00bcd4';
-    ctx.shadowBlur = 32;
-    ctx.fillStyle = 'rgba(0,188,212,0.25)';
-    ctx.fillRect(-this.width/2, -12, this.width, 24); // Thicker
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = 40;
+    ctx.fillStyle = 'rgba(0,188,212,0.3)';
+    ctx.fillRect(-this.width/2, -16, this.width, 32); // Even thicker
+    
+    // Core energy beam
+    ctx.shadowBlur = 20;
     ctx.fillStyle = '#00bcd4';
-    ctx.fillRect(-this.width/2, -8, this.width, 16); // Thicker core
-    // Add energy effect
+    ctx.fillRect(-this.width/2, -12, this.width, 24);
+    
+    // Energy pulse effect
+    const pulse = Math.sin(performance.now() * 0.01) * 0.2 + 0.8;
+    ctx.globalAlpha = pulse * 0.6;
+    ctx.fillStyle = '#00eaff';
+    ctx.fillRect(-this.width/2, -8, this.width, 16);
+    
+    // Border energy
+    ctx.globalAlpha = 1;
     ctx.strokeStyle = '#00eaff';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(-this.width/2, -12, this.width, 24);
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-this.width/2, -16, this.width, 32);
+    
+    // Particle effects along the beam
+    for (let i = 0; i < 5; i++) {
+      const offset = (performance.now() * 0.002 + i * 0.2) % 1;
+      const px = (offset - 0.5) * this.width;
+      const py = (Math.random() - 0.5) * 8;
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
     ctx.restore();
   }
 }
@@ -1911,9 +1966,38 @@ let turretProjectiles = [];
 let netProjectiles = [];
 
 function main() {
-  loadBrain();
-  initCaitlyns(savedBrain);
-  requestAnimationFrame(gameLoop);
+  // Show loading screen
+  const loadingScreen = document.getElementById('loadingScreen');
+  const loadingProgress = document.getElementById('loadingProgress');
+  const loadingText = document.getElementById('loadingText');
+  
+  let progress = 0;
+  const loadingInterval = setInterval(() => {
+    progress += Math.random() * 15;
+    if (progress > 100) progress = 100;
+    
+    loadingProgress.style.width = progress + '%';
+    
+    if (progress < 30) {
+      loadingText.textContent = 'Initializing AI Neural Networks...';
+    } else if (progress < 60) {
+      loadingText.textContent = 'Loading Game Assets...';
+    } else if (progress < 90) {
+      loadingText.textContent = 'Preparing Battle Arena...';
+    } else {
+      loadingText.textContent = 'Starting Battle Simulation...';
+    }
+    
+    if (progress >= 100) {
+      clearInterval(loadingInterval);
+      setTimeout(() => {
+        loadingScreen.classList.add('hidden');
+        loadBrain();
+        initCaitlyns(savedBrain);
+        requestAnimationFrame(gameLoop);
+      }, 500);
+    }
+  }, 100);
 }
 
 main();
@@ -2022,6 +2106,10 @@ function gameLoop(timestamp) {
     basicProjectiles.forEach(p => p.update(delta));
     basicProjectiles.forEach(p => p.draw());
     basicProjectiles = basicProjectiles.filter(p => p.alive);
+    
+    // Update and draw particle system
+    particleSystem.update(delta);
+    particleSystem.draw();
 
     // Damage detection and timer reset
     let damageDone = false;
@@ -2258,19 +2346,112 @@ if (last && last.avgRank) {
   rankDiv.innerHTML = '';
 }
 
-// Add healthbar drawing helper
+// Enhanced particle system for AAA graphics
+class ParticleSystem {
+  constructor() {
+    this.particles = [];
+  }
+  
+  spawnParticles(x, y, color, count, speed, duration) {
+    for (let i = 0; i < count; i++) {
+      this.particles.push(new Particle(x, y, color, speed, duration));
+    }
+  }
+  
+  update(delta) {
+    this.particles = this.particles.filter(p => p.update(delta));
+  }
+  
+  draw() {
+    this.particles.forEach(p => p.draw());
+  }
+}
+
+class Particle {
+  constructor(x, y, color, speed, duration) {
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * speed;
+    this.vy = (Math.random() - 0.5) * speed;
+    this.color = color;
+    this.life = duration;
+    this.maxLife = duration;
+    this.size = Math.random() * 4 + 2;
+  }
+  
+  update(delta) {
+    this.x += this.vx * delta;
+    this.y += this.vy * delta;
+    this.life -= delta;
+    this.size *= 0.98;
+    return this.life > 0;
+  }
+  
+  draw() {
+    const alpha = this.life / this.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Enhanced healthbar with modern graphics
 function drawHealthbar(x, y, width, height, hp, maxHp) {
   ctx.save();
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = '#222';
+  
+  // Background
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
   ctx.fillRect(x - width/2, y, width, height);
-  ctx.fillStyle = hp > 0 ? (hp / maxHp > 0.5 ? '#4caf50' : '#fbc02d') : '#e74c3c';
-  ctx.fillRect(x - width/2, y, Math.max(0, width * Math.max(0, hp) / maxHp), height);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 1;
+  
+  // Border
+  ctx.strokeStyle = '#2c3e50';
+  ctx.lineWidth = 2;
   ctx.strokeRect(x - width/2, y, width, height);
+  
+  // Health fill with gradient
+  const healthPercent = Math.max(0, Math.min(1, hp / maxHp));
+  const fillWidth = width * healthPercent;
+  
+  let gradient;
+  if (healthPercent > 0.6) {
+    gradient = ctx.createLinearGradient(x - width/2, y, x + width/2, y);
+    gradient.addColorStop(0, '#27ae60');
+    gradient.addColorStop(1, '#2ecc71');
+  } else if (healthPercent > 0.3) {
+    gradient = ctx.createLinearGradient(x - width/2, y, x + width/2, y);
+    gradient.addColorStop(0, '#f39c12');
+    gradient.addColorStop(1, '#e67e22');
+  } else {
+    gradient = ctx.createLinearGradient(x - width/2, y, x + width/2, y);
+    gradient.addColorStop(0, '#e74c3c');
+    gradient.addColorStop(1, '#c0392b');
+  }
+  
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x - width/2, y, fillWidth, height);
+  
+  // Glow effect
+  ctx.shadowColor = gradient;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(x - width/2, y, fillWidth, height);
+  ctx.shadowBlur = 0;
+  
   ctx.restore();
 }
+
+// Enhanced spawnParticles function
+function spawnParticles(x, y, color, count, speed, duration) {
+  particleSystem.spawnParticles(x, y, color, count, speed, duration);
+}
+
+// Global particle system
+let particleSystem = new ParticleSystem();
 
 // TurretProjectile class
 class TurretProjectile {
@@ -2364,6 +2545,34 @@ class NetProjectile {
     ctx.restore();
   }
 }
+
+// Reset game function
+function resetGame() {
+  if (confirm('Are you sure you want to reset the game? This will restart the AI training.')) {
+    location.reload();
+  }
+}
+
+// Enhanced UI interactions
+document.addEventListener('DOMContentLoaded', function() {
+  // Add hover effects to controls
+  const controls = document.querySelectorAll('.control-group');
+  controls.forEach(control => {
+    control.addEventListener('mouseenter', function() {
+      this.style.transform = 'translateY(-2px)';
+      this.style.boxShadow = '0 4px 16px rgba(52, 152, 219, 0.4)';
+    });
+    
+    control.addEventListener('mouseleave', function() {
+      this.style.transform = 'translateY(0)';
+      this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+    });
+  });
+  
+  // Add pulse animation to important elements
+  const header = document.querySelector('.header h1');
+  if (header) header.classList.add('pulse');
+});
 
 </script>
 </body>
