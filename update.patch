@@ -1,0 +1,70 @@
+diff --git a/caitlyn_click_game.html b/caitlyn_click_game.html
+--- a/caitlyn_click_game.html
++++ b/caitlyn_click_game.html
+@@ -12,6 +12,8 @@
+   }
+ </style>
++<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
++
+ </head>
+ <body>
+ <div id="ui">
+@@ -27,6 +29,9 @@
+   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
++</div>
++<canvas id="metricsChart" width="300" height="150" style="position:absolute;top:10px;right:10px;background:#333;border-radius:8px;"></canvas>
++
+ </div>
+ <canvas id="gameCanvas" width="800" height="600"></canvas>
+ <script>
+@@ -310,6 +315,38 @@
+ let statsDiv = document.getElementById('stats');
++
++// Setup Chart.js bar graph for metrics visualization
++const chartCtx = document.getElementById('metricsChart').getContext('2d');
++const metricsChart = new Chart(chartCtx, {
++  type: 'bar',
++  data: {
++    labels: ['Avg DPS', 'Avg Qs', 'Headshots Ready'],
++    datasets: [{
++      label: 'Metrics',
++      data: [0, 0, 0],
++      backgroundColor: ['#f39c12', '#00bcd4', '#e74c3c']
++    }]
++  },
++  options: {
++    responsive: false,
++    plugins: {
++      legend: { display: false }
++    },
++    scales: {
++      y: {
++        beginAtZero: true,
++        max: 10
++      }
++    }
++  }
++});
++
++function updateMetricsChart(avgDPS, avgQs, avgHeadshots) {
++  metricsChart.data.datasets[0].data = [avgDPS, avgQs, avgHeadshots];
++  metricsChart.update();
++}
+@@ -397,8 +434,13 @@
+   if (alive.length <= 1 || noDamageTimer <= 0) {
+     const winner = alive[0];
+     const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
+     const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
++
++    const avgDPS = (avgAttacks * 1 + avgQs * 1.5) / 15; // approximate dps metric
++    const avgHeadshots = caitlyns.reduce((s, c) => s + (c.headshotReady ? 1 : 0), 0) / caitlyns.length;
++
++    updateMetricsChart(avgDPS.toFixed(2), avgQs.toFixed(2), avgHeadshots.toFixed(2));
++
+     statsDiv.innerHTML =
+       `Generation: ${generation}<br>Avg Attacks: ${avgAttacks.toFixed(2)}<br>Avg Qs: ${avgQs.toFixed(2)}` +
+       (noDamageTimer <= 0 ? '<br><span style="color:#f39c12">Reset due to inactivity</span>' : '');
+@@ -409,6 +451,7 @@
+     generation++;
+     noDamageTimer = 15; // reset timer for next generation
+   }

@@ -17,37 +17,209 @@
 </style>
 </head>
 <body>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div id="ui">
   <label>Mutation Rate: <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1" /></label><br />
   <label>Attack Bias: <input type="range" id="attackBias" min="-1" max="1" step="0.05" value="0" /></label><br />
-  <label>Speed: <input type="range" id="speed" min="0.1" max="2000" step="0.1" value="1" /></label><br />
+  <label>Speed: <input type="range" id="speed" min="1" max="20" step="0.1" value="1.0" /></label><br />
+  <button id="speed2000Btn" style="margin-left:8px;">2000x</button>
   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
 </div>
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="teamGraphUI"></div>
+<canvas id="gameCanvas" width="1200" height="800"></canvas>
 <script>
+const CANVAS_WIDTH = 1200;
+const CANVAS_HEIGHT = 800;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const CAITLYN_RADIUS = 20;
-const BASE_ATTACK_RANGE = 65; // base attack range in px
-const HEADSHOT_RANGE_MULTIPLIER = 2; // double range if trapped/netted
-const ATTACK_DELAY = 0.65;
-const Q_COOLDOWN = 5;
-const BASE_MOVE_SPEED = 3.3;
-const HEADSHOT_STACKS_NEEDED = 6;
+// Wild Rift map: 13,000 units wide = 1200px
+const GAME_UNIT_TO_PX = CANVAS_WIDTH / 13000; // ≈ 0.0923 px per unit
 
-// Define brush areas (rectangles) where attacks build headshot stacks twice as fast
-const brushAreas = [
-  {x: 0, y: 0, width: 150, height: 600},    // left brush
-  {x: 650, y: 0, width: 150, height: 600},  // right brush
+// Caitlyn stats (in game units, then converted to px)
+const CAITLYN_RADIUS = 20 * GAME_UNIT_TO_PX; // 20 units
+const BASE_ATTACK_RANGE = 650 * GAME_UNIT_TO_PX; // 650 units
+const HEADSHOT_RANGE = 1300 * GAME_UNIT_TO_PX; // 1300 units
+const CAITLYN_MOVE_SPEED = 325 * GAME_UNIT_TO_PX; // 325 units/sec
+const CAITLYN_PROJECTILE_SPEED = 2500 * GAME_UNIT_TO_PX; // 2500 units/sec
+
+// Q ability constants (in game units)
+const Q_RANGE = 1250 * GAME_UNIT_TO_PX; // 1250 units
+const Q_WIDTH = 60 * GAME_UNIT_TO_PX; // 60 units
+const Q_WIDTH_EXPANDED = 90 * GAME_UNIT_TO_PX; // 90 units
+const Q_SPEED = 2200 * GAME_UNIT_TO_PX; // 2200 units/sec
+
+// Trap constants (in game units)
+const TRAP_TRIGGER_RADIUS = 67.5 * GAME_UNIT_TO_PX; // 67.5 units
+
+// Bush radii (in game units)
+const bushList = [
+  {x: 2000 * GAME_UNIT_TO_PX, y: 2000 * GAME_UNIT_TO_PX, r: 60 * GAME_UNIT_TO_PX},
+  {x: 10000 * GAME_UNIT_TO_PX, y: 2000 * GAME_UNIT_TO_PX, r: 60 * GAME_UNIT_TO_PX},
+  {x: 6000 * GAME_UNIT_TO_PX, y: 4000 * GAME_UNIT_TO_PX, r: 80 * GAME_UNIT_TO_PX},
+  {x: 3000 * GAME_UNIT_TO_PX, y: 7000 * GAME_UNIT_TO_PX, r: 60 * GAME_UNIT_TO_PX},
+  {x: 9000 * GAME_UNIT_TO_PX, y: 7000 * GAME_UNIT_TO_PX, r: 60 * GAME_UNIT_TO_PX},
+  {x: 6000 * GAME_UNIT_TO_PX, y: 1000 * GAME_UNIT_TO_PX, r: 50 * GAME_UNIT_TO_PX},
+  {x: 6000 * GAME_UNIT_TO_PX, y: 7000 * GAME_UNIT_TO_PX, r: 50 * GAME_UNIT_TO_PX}
 ];
 
-// Helper to check if point in brush
+// Turret range (in game units)
+// Update Turret class to use this
+const TURRET_RANGE = 180 * GAME_UNIT_TO_PX; // 180 units
+
+// Minion stats (in game units)
+const MINION_TYPES = {
+  melee: {
+    baseHp: 200,  // Further reduced
+    baseAd: 8,    // Reduced from 16
+    attackSpeed: 0.8,  // Reduced from 1.25
+    moveSpeed: 325 * GAME_UNIT_TO_PX,
+    range: 120 * GAME_UNIT_TO_PX,
+    gold: 65,
+    armor: 0,
+    mr: 0,
+    xp: 60,
+    radius: 24 * GAME_UNIT_TO_PX,
+    color: '#bca',
+  },
+  caster: {
+    baseHp: 140,  // Further reduced
+    baseAd: 6,    // Reduced from 12
+    attackSpeed: 0.7,  // Reduced from 1.0
+    moveSpeed: 325 * GAME_UNIT_TO_PX,
+    range: 500 * GAME_UNIT_TO_PX,
+    gold: 45,
+    armor: 0,
+    mr: 0,
+    xp: 30,
+    radius: 20 * GAME_UNIT_TO_PX,
+    color: '#8cf',
+  },
+  cannon: {
+    baseHp: 350,  // Further reduced
+    baseAd: 15,   // Reduced from 28
+    attackSpeed: 0.6,  // Reduced from 0.83
+    moveSpeed: 285 * GAME_UNIT_TO_PX,
+    range: 300 * GAME_UNIT_TO_PX,
+    gold: 85,
+    armor: 15,
+    mr: 15,
+    xp: 93,
+    radius: 32 * GAME_UNIT_TO_PX,
+    color: '#fa4',
+    turretDmgReduction: 0.7,
+  },
+  super: {
+    baseHp: 700,  // Further reduced
+    baseAd: 40,   // Reduced from 80
+    attackSpeed: 0.8,  // Reduced from 1.0
+    moveSpeed: 325 * GAME_UNIT_TO_PX,
+    range: 200 * GAME_UNIT_TO_PX,
+    gold: 150,
+    armor: 40,
+    mr: 40,
+    xp: 97,
+    radius: 38 * GAME_UNIT_TO_PX,
+    color: '#f44',
+    turretDmgReduction: 0.5,
+  }
+};
+
+const CAITLYN_BASE_HP = 580;
+const CAITLYN_BASE_AD = 80;  // Increased from 60
+const CAITLYN_BASE_AS = 0.681;
+const CAITLYN_AS_RATIO = 0.625;
+const CAITLYN_ARMOR = 0;
+const CAITLYN_MR = 0;
+const CAITLYN_ATTACK_RANGE_UNITS = 650; // full original range
+const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
+
+// Headshot constants
+const HEADSHOT_STACKS_NEEDED = 5;
+const HEADSHOT_STACKS_BRUSH = 4;
+const HEADSHOT_BONUS_MULT = 0.6; // 60% bonus AD
+const HEADSHOT_RANGE_UNITS = 1300 / 3; // 1/3 original
+const HEADSHOT_WINDUP_PCT = 0.17708; // 17.7%
+
+// Q ability constants (scaled to px)
+const Q_CAST_TIME = 0.625; // seconds
+const Q_RANGE_UNITS = 1300;
+const Q_SPEED_UNITS = 2200;
+const Q_WIDTH_UNITS = 120;  // Increased from 60
+const Q_WIDTH_EXPANDED_UNITS = 180;  // Increased from 90
+const Q_DAMAGE_RATIO = 2.05; // 205% total AD (max rank)
+const Q_DAMAGE_FALLOFF = 0.5; // 50% to secondary targets
+const Q_BASE_DAMAGE = 210; // Base damage at max rank
+
+// Trap constants
+const TRAP_CAP = 3;
+const TRAP_RECHARGE = 24; // seconds per trap
+const TRAP_DURATION = 30; // seconds
+const TRAP_ARM_TIME = 1.1; // seconds
+const TRAP_TRIGGER_RADIUS_UNITS = 67.5;
+const TRAP_ROOT_DURATION = 1.5; // seconds
+const TRAP_REVEAL_DURATION = 3; // seconds
+const TRAP_MARK_DURATION = 2.5; // seconds
+const TRAP_HEADSHOT_BONUS = 1.2; // +120% headshot bonus
+const TRAP_HEADSHOT_RANGE_MULT = 2; // double range
+
+// Trap class (must be defined before CaitlynAI and any use)
+class Trap {
+  constructor(owner, x, y) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.placedAt = performance.now() / 1000;
+    this.armedAt = this.placedAt + TRAP_ARM_TIME;
+    this.expiresAt = this.placedAt + TRAP_DURATION;
+    this.armed = false;
+    this.triggered = false;
+    this.triggeredAt = null;
+    this.target = null;
+    this.alive = true;
+  }
+  update(now) {
+    if (!this.armed && now >= this.armedAt) this.armed = true;
+    if (this.triggered && now - this.triggeredAt > 0.5) this.alive = false; // remove after short delay
+    if (now >= this.expiresAt) this.alive = false;
+  }
+  draw() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = this.armed ? (this.triggered ? '#e74c3c' : '#ffeb3b') : '#888';
+    ctx.globalAlpha = this.armed ? 0.8 : 0.4;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+
+// 2. Update inBrush(x, y) to check if a point is inside any bush
 function inBrush(x, y) {
-  return brushAreas.some(area =>
-    x >= area.x && x <= area.x + area.width &&
-    y >= area.y && y <= area.y + area.height
-  );
+  return bushList.some(b => Math.hypot(x - b.x, y - b.y) < b.r);
+}
+// Helper: which bush index (or -1 if none)
+function whichBush(x, y) {
+  for (let i = 0; i < bushList.length; ++i) {
+    const b = bushList[i];
+    if (Math.hypot(x - b.x, y - b.y) < b.r) return i;
+  }
+  return -1;
+}
+
+// Helper: distance to nearest bush
+function distToNearestBush(x, y) {
+  let minDist = Infinity;
+  for (const b of bushList) {
+    const d = Math.max(0, Math.hypot(x - b.x, y - b.y) - b.r);
+    if (d < minDist) minDist = d;
+  }
+  return minDist;
 }
 
 // Basic Ability drawing helper
@@ -78,7 +250,7 @@ class Projectile {
   update(delta) {
     this.x += Math.cos(this.angle) * this.speed * delta;
     this.y += Math.sin(this.angle) * this.speed * delta;
-    if (this.x < 0 || this.x > 800 || this.y < 0 || this.y > 600) this.alive = false;
+    if (this.x < 0 || this.x > CANVAS_WIDTH || this.y < 0 || this.y > CANVAS_HEIGHT) this.alive = false;
   }
 
   draw() {
@@ -86,202 +258,817 @@ class Projectile {
   }
 }
 
+// Basic attack projectile animation class
+class BasicProjectile {
+  constructor(x0, y0, x1, y1, color, onHit, isHeadshot) {
+    this.x0 = x0; this.y0 = y0;
+    this.x1 = x1; this.y1 = y1;
+    this.t = 0; // 0 to 1
+    this.color = color;
+    this.alive = true;
+    this.onHit = onHit;
+    this.isHeadshot = isHeadshot;
+  }
+  update(dt) {
+    this.t += dt * (this.isHeadshot ? 3 : 2); // headshot projectiles are faster
+    if (this.t >= 1) {
+      this.alive = false;
+      if (this.onHit) this.onHit();
+    }
+  }
+  draw() {
+    const x = this.x0 + (this.x1 - this.x0) * this.t;
+    const y = this.y0 + (this.y1 - this.y0) * this.t;
+    ctx.save();
+    
+    // Draw bullet trail
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    
+    // Draw bullet
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, this.isHeadshot ? 6 : 4, 0, Math.PI * 2);
+    ctx.fillStyle = this.isHeadshot ? 'red' : this.color;
+    ctx.fill();
+    
+    // Add bullet tip
+    const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    
+    ctx.restore();
+  }
+}
+
+// Load Caitlyn sprite
+const caitlynImg = new Image();
+caitlynImg.src = 'caitlyn.png';
+let caitlynImgLoaded = false;
+caitlynImg.onload = () => { caitlynImgLoaded = true; };
+
+// TEAMFIGHT CONSTANTS
+const TEAM_SIZE = 5;
+const NUM_TEAMS = 2;
+const NUM_CAITLYNS = TEAM_SIZE * NUM_TEAMS;
+const TEAM_COLORS = ['#8e44ad', '#e74c3c'];
+
+// Helper: angle between two points
+function angleBetween(x1, y1, x2, y2) {
+  return Math.atan2(y2 - y1, x2 - x1);
+}
+
+// Simple feedforward neural net (2 hidden layers)
+function feedforward(inputs, weights) {
+  // 35 input, 24 hidden1, 12 hidden2, 9 output
+  const numInputs = 35, H1 = 24, H2 = 12, O = 9;
+  let hidden1 = Array(H1).fill(0);
+  let hidden2 = Array(H2).fill(0);
+  let out = Array(O).fill(0);
+  // Input to hidden1
+  for (let h = 0; h < H1; ++h) {
+    for (let i = 0; i < numInputs; ++i) {
+      hidden1[h] += inputs[i] * weights[h * numInputs + i];
+    }
+    hidden1[h] = Math.tanh(hidden1[h] + weights[H1 * numInputs + h]);
+  }
+  // Hidden1 to hidden2
+  let offset = H1 * numInputs + H1;
+  for (let h2 = 0; h2 < H2; ++h2) {
+    for (let h1 = 0; h1 < H1; ++h1) {
+      hidden2[h2] += hidden1[h1] * weights[offset + h2 * H1 + h1];
+    }
+    hidden2[h2] = Math.tanh(hidden2[h2] + weights[offset + H2 * H1 + h2]);
+  }
+  // Hidden2 to output
+  offset += H2 * H1 + H2;
+  for (let o = 0; o < O; ++o) {
+    for (let h2 = 0; h2 < H2; ++h2) {
+      out[o] += hidden2[h2] * weights[offset + o * H2 + h2];
+    }
+    out[o] = Math.tanh(out[o] + weights[offset + O * H2 + o]);
+  }
+  return out;
+}
+
+// CaitlynAI class
 class CaitlynAI {
-  constructor(x, y, color, brain) {
+  constructor(x, y, color, team, brain) {
     this.x = x;
     this.y = y;
     this.color = color;
-    this.hp = 3;
+    this.team = team;
+    this.hp = CAITLYN_BASE_HP;
     this.attackTimer = 0;
-    this.qTimer = Math.random() * Q_COOLDOWN;
+    this.qTimer = 0;
     this.attackAttempts = 0;
     this.qAttempts = 0;
-    this.brain = brain || CaitlynAI.randomBrain();
-
-    // Headshot mechanic variables
     this.basicAttackCount = 0;
     this.headshotReady = false;
-    this.trapped = false;  // For simplicity, this can be set by traps/nets in the future
-    this.netted = false;   // Same as above
+    this.targetIdx = -1;
+    this.brain = brain || CaitlynAI.randomBrain();
+    this.attackSpeed = CAITLYN_BASE_AS;
+    this.attackDelay = 1 / this.attackSpeed;
+    this.attackWindup = HEADSHOT_WINDUP_PCT * this.attackDelay;
+    this.windupTimer = 0;
+    this.pendingAttack = null;
+    this.damageDealt = 0;
+    this.moveSpeed = CAITLYN_MOVE_SPEED;
+    this.attackRange = CAITLYN_ATTACK_RANGE;
+    this.projectileSpeed = CAITLYN_PROJECTILE_SPEED;
+    this.armor = CAITLYN_ARMOR;
+    this.mr = CAITLYN_MR;
+    this.qWindup = 0; // Q cast windup timer
+    this.qActive = false; // Q is being cast
+    this.qProjectile = null; // Q projectile reference
+    // Trap-related properties
+    this.traps = [];
+    this.trapCooldown = 0;
+    this.trapCharges = TRAP_CAP;
+    this.lastTrapPlaced = 0;
+    this.trapRechargeTimer = 0;
+    this.trapTargets = new Set();
+    this.trapMark = null;
+    this.trapped = false;
+    this.trapRootTimer = 0;
+    this.trapRevealTimer = 0;
+    this.trapMarkTimer = 0;
+    this.trapMarkedBy = null;
+    this.gold = 0;
+    this.minDistToEnemyNexus = Infinity;
+    this.lastMoveCommandTime = 0;
+    this.cachedMove = { x: 0, y: 0 };
+    this.respawnTimer = 0;
+    this.dead = false;
+    this.items = [];
+    this.isRecalling = false;
+    this.recallTimer = 0;
+    this.canBuy = false;
+    this.fitness = 0; // Add fitness property
+    this.kills = 0;
+    this.assists = 0;
+    this.deaths = 0;
+    this.minionLastHits = 0;
+    this.turretsDestroyed = 0;
+    this.goldSpent = 0;
+    this.idleTime = 0;
+    this.bushTime = 0;
+    this.lastActiveTime = performance.now() / 1000;
+    this.lastPosition = { x: x, y: y };
+    this.nexusDamage = 0;
+    this.turretDamage = 0;
+    this.unspentGold = 0;
+    this.survived = false;
+    this.tookDamage = false;
+    // In CaitlynAI constructor, add E ability state
+    this.eCooldown = 0;
+    this.eActive = false;
+    this.eSlowTimer = 0;
+    this.eSlowedBy = null;
   }
-
+  static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
+  static HIDDEN1 = 24;
+  static HIDDEN2 = 12;
+  static OUTPUTS = 9; // moveX, moveY, attack, buy, recall, trap, target, useE, qAngle
+  static WEIGHTS_LEN =
+    CaitlynAI.INPUTS * CaitlynAI.HIDDEN1 + CaitlynAI.HIDDEN1 +
+    CaitlynAI.HIDDEN1 * CaitlynAI.HIDDEN2 + CaitlynAI.HIDDEN2 +
+    CaitlynAI.HIDDEN2 * CaitlynAI.OUTPUTS + CaitlynAI.OUTPUTS;
   static randomBrain() {
-    return Array.from({ length: 10 }, () => Math.random() * 2 - 1);
+    return Array.from({ length: CaitlynAI.WEIGHTS_LEN }, () => Math.random() * 2 - 1);
   }
-
   static mutate(brain, rate) {
-    return brain.map(w => w + (Math.random() * 2 - 1) * rate);
+    let out = brain.slice();
+    while (out.length < CaitlynAI.WEIGHTS_LEN) out.push(Math.random() * 2 - 1);
+    while (out.length > CaitlynAI.WEIGHTS_LEN) out.pop();
+    return out.map(w => w + (Math.random() * 2 - 1) * rate);
+  }
+  // In CaitlynAI decide, allow targeting of minions, turrets, or players
+  // Add minions and turrets as arguments to decide and update
+  decide(allCaitlyns, minions, turrets) {
+    // Inputs: for each enemy/ally: dx, dy, hp (normalized), self: cooldowns, headshot, inBrush
+    let inputs = [];
+    let me = this;
+    // Bush vision: filter out enemies in bush if Caitlyn is not in same bush
+    const myBush = whichBush(this.x, this.y);
+    let enemies = allCaitlyns.filter(c => c.team !== this.team && c.hp > 0 && (myBush === -1 || whichBush(c.x, c.y) === myBush || whichBush(c.x, c.y) === -1));
+    let allies = allCaitlyns.filter(c => c.team === this.team && c !== this && c.hp > 0);
+    // For each enemy: dx, dy, hp (max TEAM_SIZE)
+    for (let i = 0; i < TEAM_SIZE; ++i) {
+      let e = enemies[i] || { x: 0, y: 0, hp: 0 };
+      inputs.push((e.x - me.x) / CANVAS_WIDTH, (e.y - me.y) / CANVAS_HEIGHT, e.hp / 600);
+    }
+    // For each ally: dx, dy, hp (max TEAM_SIZE-1)
+    for (let i = 0; i < TEAM_SIZE - 1; ++i) {
+      let a = allies[i] || { x: 0, y: 0, hp: 0 };
+      inputs.push((a.x - me.x) / CANVAS_WIDTH, (a.y - me.y) / CANVAS_HEIGHT, a.hp / 600);
+    }
+    // Self: cooldowns, headshot, inBrush (4 values)
+    inputs.push(this.attackTimer / 2, this.qTimer / 10, this.headshotReady ? 1 : 0, inBrush(this.x, this.y) ? 1 : 0);
+    // Add distance to nearest bush (normalized)
+    inputs.push(distToNearestBush(this.x, this.y) / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT));
+    // Add distance to nearest enemy turret's range (negative if inside, positive if outside, normalized)
+    let minTurretDist = 1e9;
+    for (const t of turrets) {
+      if (t.team !== this.team) {
+        const d = Math.hypot(this.x - t.x, this.y - t.y) - t.range;
+        if (Math.abs(d) < Math.abs(minTurretDist)) minTurretDist = d;
+      }
+    }
+    // Normalize by dividing by max map dimension
+    inputs.push(Math.max(-1, Math.min(1, minTurretDist / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT))));
+    // Truncate if too long
+    if (inputs.length > 18) inputs = inputs.slice(0, 18);
+    // Pad to exactly 18 inputs
+    while (inputs.length < 18) inputs.push(0);
+    if (inputs.length !== 18) {
+      console.error('Neural net input length error:', inputs.length, inputs);
+    }
+    // After existing 18 inputs:
+    // Add 3 nearest traps (dx, dy, armed)
+    let allTraps = [];
+    caitlyns.forEach(c => allTraps.push(...c.traps));
+    allTraps = allTraps.filter(trap => trap.alive);
+    allTraps.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (let i = 0; i < 3; ++i) {
+      const trap = allTraps[i];
+      if (trap) {
+        inputs.push((trap.x - me.x) / CANVAS_WIDTH);
+        inputs.push((trap.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(trap.armed ? 1 : 0);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    // Add E cooldown
+    inputs.push(this.eCooldown / 16); // Normalize by max cooldown
+    // Add distance to nearest enemy
+    let nearestEnemyDist = 1e9;
+    for (const enemy of enemies) {
+      const dist = Math.hypot(enemy.x - me.x, enemy.y - me.y);
+      if (dist < nearestEnemyDist) nearestEnemyDist = dist;
+    }
+    inputs.push(Math.min(1, nearestEnemyDist / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT)));
+    // Add minion information: 3 nearest friendly minions and 3 nearest enemy minions
+    let friendlyMinions = minions.filter(m => m.team === this.team && m.alive);
+    let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+    
+    // Sort by distance to Caitlyn
+    friendlyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    enemyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    
+    // Add 3 nearest friendly minions (dx, dy, hp)
+    for (let i = 0; i < 3; ++i) {
+      const minion = friendlyMinions[i];
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp); // Normalized HP
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    
+    // Add 3 nearest enemy minions (dx, dy, hp)
+    for (let i = 0; i < 3; ++i) {
+      const minion = enemyMinions[i];
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp); // Normalized HP
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    // Feedforward
+    let out = feedforward(inputs, this.brain);
+    if (out.some(x => isNaN(x))) {
+      console.error('Neural net output NaN:', out, inputs, this.brain);
+    }
+    // Outputs: moveX, moveY, attackProb, useQProb, buyProb, recallProb, trapProb, useE, qAngle
+    let targetType = Math.max(0, Math.min(2, Math.floor((out[4] + 1) * 1.5)));
+    let targetIdx = 0;
+    let target = null;
+    if (typeof generation !== 'undefined' && generation <= 300) {
+      // FORCE: Only target minions for first 300 generations
+      let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+      if (enemyMinions.length > 0) {
+        // Closest minion
+        enemyMinions.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = enemyMinions[0];
+      }
+    } else if (targetType === 0) {
+      // Minion
+      let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+      if (enemyMinions.length > 0) {
+        // Closest minion
+        enemyMinions.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = enemyMinions[0];
+      }
+    } else if (targetType === 1) {
+      // Turret
+      let enemyTurrets = turrets.filter(t => t.team !== this.team);
+      if (enemyTurrets.length > 0) {
+        // Closest enemy turret
+        enemyTurrets.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = enemyTurrets[0];
+      }
+    } else {
+      // Player
+      if (enemies.length > 0) {
+        // Closest enemy Caitlyn
+        enemies.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = enemies[0];
+      }
+    }
+    const [moveX, moveY, attack, useQ, buy, recall, trap, useE, qAngle] = out;
+    this.moveX = moveX;
+    this.moveY = moveY;
+    this.attackIntent = attack;
+    this.buyIntent = buy;
+    this.recallIntent = recall;
+    this.trapIntent = trap;
+    this.useEIntent = useE;
+    this.qAngle = qAngle; // Store Q angle for aiming
+    return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, qAngle: qAngle };
   }
 
-  // Decide which enemy to attack and movement
-  decide(enemies) {
-    const aliveEnemies = enemies.filter(e => e !== this && e.hp > 0);
-    if (aliveEnemies.length === 0) return { moveX: 0, moveY: 0, target: null, attack: false, useQ: false, qAngle: 0 };
-
-    // Find closest enemy
-    let closest = aliveEnemies[0];
-    let minDist = Infinity;
-    for (let e of aliveEnemies) {
-      const d = Math.hypot(e.x - this.x, e.y - this.y);
-      if (d < minDist) { minDist = d; closest = e; }
+  update(others, delta, projectiles, minions, turrets) {
+    const now = performance.now() / 1000;
+    if (this.dead) {
+      if (!allowRespawn) return;
+      this.respawnTimer -= delta;
+      if (this.respawnTimer <= 0) {
+        // Respawn at own Nexus
+        this.x = NEXUS_POS[this.team].x;
+        this.y = NEXUS_POS[this.team].y;
+        this.hp = CAITLYN_BASE_HP + this.getBonusHP();
+        this.dead = false;
+      }
+      return;
     }
-
-    // Calculate move direction
-    const angle = Math.atan2(closest.y - this.y, closest.x - this.x);
-    const moveX = Math.cos(angle) * (this.brain[0] + this.brain[2]);
-    const moveY = Math.sin(angle) * (this.brain[1] + this.brain[3]);
-
-    // Determine attack range (headshot doubles range if trapped/netted)
-    let attackRange = BASE_ATTACK_RANGE;
-    if (closest.trapped || closest.netted) attackRange *= HEADSHOT_RANGE_MULTIPLIER;
-
-    // Check if headshot is ready (auto fires every 6th attack or instantly on trapped/netted)
-    const inRange = minDist <= attackRange;
-    const canAttack = inRange && this.attackTimer <= 0;
-    const headshotReady = this.headshotReady || (closest.trapped || closest.netted);
-
-    // Decide if attack (with bias)
-    const attack = canAttack && (Math.random() > this.brain[4]);
-
-    // Q usage: try to line up at least 2 enemies in a line within Q range
-    const qRange = 600; // Q max range
-    let useQ = false;
-    let qAngle = 0;
-
-    if (this.qTimer <= 0) {
-      // Check for best angle to hit max enemies in a line
-      let bestCount = 1;
-      let bestAngle = 0;
-      for (let i = 0; i < aliveEnemies.length; i++) {
-        const target = aliveEnemies[i];
-        const angleToTarget = Math.atan2(target.y - this.y, target.x - this.x);
-
-        // Count how many enemies are close to this angle (within ~10 degrees)
-        let count = 0;
-        for (let other of aliveEnemies) {
-          const angleToOther = Math.atan2(other.y - this.y, other.x - this.x);
-          const diff = Math.abs(angleToOther - angleToTarget);
-          if (diff < 0.17) { // ~10 degrees in radians
-            const dist = Math.hypot(other.x - this.x, other.y - this.y);
-            if (dist <= qRange) count++;
+    if (this.hp <= 0) {
+      // On death, set respawn timer to ceil(game time in seconds)
+      const gameTime = (typeof generationStartTime === 'number' && lastTime) ? ((lastTime - generationStartTime) / 1000) : now;
+      this.respawnTimer = Math.ceil(gameTime);
+      this.dead = true;
+      return;
+    }
+    // Recall logic
+    if (this.isRecalling) {
+      this.recallTimer -= delta;
+      // If took damage, cancel recall
+      if (this.tookDamage) {
+        this.isRecalling = false;
+        this.recallTimer = 0;
+        this.tookDamage = false;
+      } else if (this.recallTimer <= 0) {
+        // Teleport to base
+        this.x = NEXUS_POS[this.team].x;
+        this.y = NEXUS_POS[this.team].y;
+        this.isRecalling = false;
+        this.canBuy = true;
+      }
+      return;
+    }
+    // If at base and can buy, buy items if enough gold
+    if (this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) < NEXUS_RADIUS + 10) {
+      for (const item of ITEM_SHOP) {
+        if (this.gold >= item.cost && !this.items.includes(item)) {
+          this.gold -= item.cost;
+          this.items.push(item);
+          this.goldSpent += item.cost;
+          // Only buy one item per base visit for now
+          break;
+        }
+      }
+      this.canBuy = false;
+    }
+    // Trap recharge and placement logic (always runs)
+    if (this.trapCharges < TRAP_CAP) {
+      this.trapRechargeTimer += delta;
+      if (this.trapRechargeTimer >= TRAP_RECHARGE) {
+        this.trapCharges++;
+        this.trapRechargeTimer = 0;
+      }
+    }
+    // Remove expired traps
+    this.traps = this.traps.filter(trap => trap.alive && (performance.now() / 1000) < trap.expiresAt);
+    // Place trap randomly if available and not too many active
+    if (this.trapCharges > 0 && this.traps.length < TRAP_CAP && Math.random() < 0.01) {
+      // Only allow trap placement within 200 units of Caitlyn's current position
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 200;
+      const tx = Math.max(20, Math.min(CANVAS_WIDTH - 20, this.x + Math.cos(angle) * radius));
+      const ty = Math.max(20, Math.min(CANVAS_HEIGHT - 20, this.y + Math.sin(angle) * radius));
+      this.traps.push(new Trap(this, tx, ty));
+      this.trapCharges--;
+      this.lastTrapPlaced = performance.now() / 1000;
+    }
+    // Trap logic: arming, triggering
+    for (const trap of this.traps) {
+      trap.update(now);
+      if (trap.armed && !trap.triggered) {
+        for (const enemy of others) {
+          if (enemy.team !== this.team && enemy.hp > 0 && !enemy.trapped) {
+            const dist = Math.hypot(enemy.x - trap.x, enemy.y - trap.y);
+            if (dist < TRAP_TRIGGER_RADIUS) {
+              trap.triggered = true;
+              trap.triggeredAt = now;
+              trap.target = enemy;
+              enemy.trapped = true;
+              enemy.trapRootTimer = TRAP_ROOT_DURATION;
+              enemy.trapRevealTimer = TRAP_REVEAL_DURATION;
+              enemy.trapMarkTimer = TRAP_MARK_DURATION;
+              enemy.trapMarkedBy = this;
+              break;
+            }
           }
         }
-
-        if (count > bestCount) {
-          bestCount = count;
-          bestAngle = angleToTarget;
-        }
-      }
-
-      if (bestCount >= 2) {
-        useQ = true;
-        qAngle = bestAngle;
       }
     }
-
-    return { moveX, moveY, target: closest, attack, useQ, qAngle, headshotReady };
-  }
-
-  update(others, delta, projectiles) {
-    if (this.hp <= 0) return;
+    // Trap mark logic (for empowered headshot)
+    if (this.trapMark && (performance.now() / 1000) > this.trapMark.expiresAt) {
+      this.trapMark = null;
+    }
+    // Trap root and reveal
+    if (this.trapped) {
+      this.trapRootTimer -= delta;
+      this.trapRevealTimer -= delta;
+      this.trapMarkTimer -= delta;
+      if (this.trapRootTimer > 0) {
+        // Immobilized: skip movement/attack
+        return;
+      }
+      if (this.trapRootTimer <= 0 && this.trapped) {
+        this.trapped = false;
+      }
+      if (this.trapMarkTimer <= 0) {
+        this.trapMarkedBy = null;
+      }
+    }
+    // Headshot stack logic: always define at the top
+    let stacksNeeded = inBrush(this.x, this.y) ? HEADSHOT_STACKS_BRUSH : HEADSHOT_STACKS_NEEDED;
     this.attackTimer -= delta;
     this.qTimer -= delta;
 
-    const { moveX, moveY, target, attack, useQ, qAngle, headshotReady } = this.decide(others);
+    const { moveX, moveY, target, attack, useQ, buy, recall, trap, useE, qAngle } = this.decide(others, minions, turrets);
+    let doAttack = attack;
+    // Fallback: if not attacking but in range and cooldown is ready, force attack
+    if (!doAttack && target && this.attackTimer <= 0) {
+      const dist = Math.hypot(target.x - this.x, target.y - this.y);
+      let attackRange = this.attackRange;
+      if (target.trapped || target.netted) attackRange = HEADSHOT_RANGE;
+      if (dist <= attackRange) doAttack = true;
+    }
 
-    // Use Q
-    if (useQ && this.qTimer <= 0) {
+    // Q windup/cast logic
+    if (this.qWindup > 0) {
+      this.qWindup -= delta;
+      if (this.qWindup <= 0) {
+        // Fire Q projectile using learned angle
+        let angle = this.qAngle * Math.PI; // Convert from [-1,1] to radians
+        this.qActive = true;
+        this.qProjectile = new QProjectile(this, this.x, this.y, angle);
+        projectiles.push(this.qProjectile);
+        this.qTimer = Q_COOLDOWN;
+      }
+      return; // Can't auto or cast other abilities during Q windup
+    }
+    // Q cast trigger
+    if (useQ && this.qTimer <= 0 && !this.qActive && this.qWindup <= 0) {
       this.qAttempts++;
-      this.qTimer = Q_COOLDOWN;
-      projectiles.push(new Projectile(this.x, this.y, qAngle, 150, this.color, 'Q'));
+      this.qWindup = Q_CAST_TIME;
+      return; // Start windup, can't do other actions
     }
 
     // Attack logic
-    if (attack && target && this.attackTimer <= 0) {
-      const dist = Math.hypot(target.x - this.x, target.y - this.y);
-
-      // Determine attack range (headshot doubles range if trapped/netted)
-      let attackRange = BASE_ATTACK_RANGE;
-      if (target.trapped || target.netted) attackRange *= HEADSHOT_RANGE_MULTIPLIER;
-
-      if (dist <= attackRange) {
-        this.attackAttempts++;
-
-        if (headshotReady) {
-          // Fire Headshot - bonus damage
-          target.hp -= 2; // headshot does double damage
-          this.headshotReady = false;
-          this.basicAttackCount = 0;
-
-          // Draw special headshot visual line (red)
-          ctx.strokeStyle = 'red';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(this.x, this.y);
-          ctx.lineTo(target.x, target.y);
-          ctx.stroke();
-          ctx.lineWidth = 1;
-        } else {
-          // Normal attack damage
-          target.hp--;
-          this.basicAttackCount++;
-          // Check if basicAttackCount hits threshold for next headshot
-          if (inBrush(this.x, this.y)) {
-            // build stacks twice as fast
-            this.basicAttackCount += 1;
-          }
-          if (this.basicAttackCount >= HEADSHOT_STACKS_NEEDED) {
-            this.headshotReady = true;
-          }
-          // Draw normal attack line (yellow)
-          ctx.strokeStyle = 'yellow';
-          ctx.beginPath();
-          ctx.moveTo(this.x, this.y);
-          ctx.lineTo(target.x, target.y);
-          ctx.stroke();
+    if (this.windupTimer > 0) {
+      this.windupTimer -= delta;
+      if (this.windupTimer <= 0 && this.pendingAttack) {
+        const { target, damage, isHeadshot } = this.pendingAttack;
+        if (target && target.hp > 0) {
+          basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
+            target.hp -= damage;
+            this.damageDealt += damage;
+            if (target instanceof Turret) this.turretDamage += damage;
+            if (target === nexuses[0] || target === nexuses[1]) this.nexusDamage += damage;
+            // Debug logging for minion damage
+            if (target instanceof Minion) {
+              console.log(`MINION DAMAGE: Caitlyn (team ${this.team}) deals ${damage} damage to ${target.type} minion. HP: ${target.hp}/${target.baseHp}`);
+            } else {
+              console.log(
+                `ATTACK (on hit): Caitlyn (team ${this.team}) at (${this.x.toFixed(1)},${this.y.toFixed(1)}) attacks ` +
+                `Caitlyn (team ${target.team}) at (${target.x.toFixed(1)},${target.y.toFixed(1)}) for ${damage} damage. ` +
+                `Target HP after: ${target.hp}`
+              );
+            }
+          }, isHeadshot));
         }
-
-        this.attackTimer = ATTACK_DELAY;
+        this.pendingAttack = null;
       }
-    } else if (this.attackTimer <= 0) {
-      // Move only if not attacking
-      this.x += moveX * BASE_MOVE_SPEED * parseFloat(speedSlider.value) * delta;
-      this.y += moveY * BASE_MOVE_SPEED * parseFloat(speedSlider.value) * delta;
-      this.x = Math.max(0, Math.min(800, this.x));
-      this.y = Math.max(0, Math.min(600, this.y));
+      return; // Can't move or attack during windup
+    }
+    const dist = target ? Math.hypot(target.x - this.x, target.y - this.y) : Infinity;
+    let attackRange = this.attackRange;
+    if (target && (target.trapped || target.netted)) attackRange = HEADSHOT_RANGE;
+    if (doAttack && target && this.attackTimer <= 0 && dist <= attackRange) {
+      this.attackAttempts++;
+      let damage = CAITLYN_BASE_AD;
+      let isHeadshot = false;
+      if (this.headshotReady || (target.trapped || target.netted)) {
+        damage += Math.round(CAITLYN_BASE_AD * HEADSHOT_BONUS_MULT);
+        this.headshotReady = false;
+        this.basicAttackCount = 0;
+        isHeadshot = true;
+      } else {
+        this.basicAttackCount++;
+        if (inBrush(this.x, this.y)) this.basicAttackCount++;
+        if (this.basicAttackCount >= stacksNeeded) {
+          this.headshotReady = true;
+        }
+      }
+      this.windupTimer = this.attackWindup;
+      this.pendingAttack = { target, damage, isHeadshot };
+      this.attackTimer = this.attackDelay;
+      // If attacking a minion, set lastHitBy
+      if (target && target instanceof Minion) target.lastHitBy = this;
+      return;
+    } else {
+      // Move if not in range, or attack is on cooldown
+      let speed = this.moveSpeed * parseFloat(speedSlider.value);
+      if (this.slowTimer > 0) speed *= E_SLOW_AMOUNT;
+      // Add small random jitter to break symmetry
+      const jitter = 0.2;
+      let moveVecX = moveX;
+      let moveVecY = moveY;
+      if (target) {
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-3) {
+          moveVecX = dx / len;
+          moveVecY = dy / len;
+        }
+      }
+      this.x += (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
+      this.y += (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      // Clamp
+      if (!isFinite(this.x) || !isFinite(this.y)) {
+        this.x = Math.max(0, Math.min(CANVAS_WIDTH, isFinite(this.x) ? this.x : 400));
+        this.y = Math.max(0, Math.min(CANVAS_HEIGHT, isFinite(this.y) ? this.y : 300));
+      } else {
+        this.x = Math.max(0, Math.min(CANVAS_WIDTH, this.x));
+        this.y = Math.max(0, Math.min(CANVAS_HEIGHT, this.y));
+      }
+    }
+    // Track minimum distance to enemy Nexus
+    const enemyNexus = nexuses[1 - this.team];
+    const distToNexus = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
+    if (distToNexus < this.minDistToEnemyNexus) this.minDistToEnemyNexus = distToNexus;
+    // Reward for standing in bush
+    if (inBrush(this.x, this.y)) this.fitness += 0.01 * delta;
+    // DPM fitness: add damage per second
+    this.fitness += (this.damageDealt / 60) * delta;
+    // Track bush time
+    if (inBrush(this.x, this.y)) this.bushTime += delta;
+    // Track idle time (not moving or attacking for >5s)
+    const distMoved = Math.hypot(this.x - this.lastPosition.x, this.y - this.lastPosition.y);
+    if (distMoved > 2 || this.attackTimer > 0) {
+      this.lastActiveTime = now;
+    } else if (now - this.lastActiveTime > 5) {
+      this.idleTime += delta;
+    }
+    this.lastPosition.x = this.x;
+    this.lastPosition.y = this.y;
+
+    // E cooldown
+    this.eCooldown -= delta;
+    if (this.eSlowTimer > 0) {
+      this.eSlowTimer -= delta;
+      if (this.eSlowTimer <= 0) this.eSlowedBy = null;
+    }
+    // Use E if off cooldown, not dead, and target in range (for now, use randomly for demo)
+    if (!this.dead && this.eCooldown <= 0 && this.useEIntent > 0.5) {
+      // Fire net in a direction (for now, away from nearest enemy)
+      let angle = Math.random() * Math.PI * 2;
+      if (others && others.length > 0) {
+        // Fire away from nearest enemy
+        let nearest = others.filter(o => o.team !== this.team && o.hp > 0)[0];
+        if (nearest) angle = Math.atan2(this.y - nearest.y, this.x - nearest.x);
+      }
+      netProjectiles.push(new NetProjectile(this, this.x, this.y, angle));
+      // Knock Caitlyn back
+      this.x += Math.cos(angle) * -60;
+      this.y += Math.sin(angle) * -60;
+      this.eCooldown = 16; // fixed cooldown for now
     }
   }
 
   draw() {
-    // Draw Caitlyn circle with gradient to mimic LoL style
-    let gradient = ctx.createRadialGradient(this.x, this.y, CAITLYN_RADIUS / 2, this.x, this.y, CAITLYN_RADIUS);
-    gradient.addColorStop(0, this.color);
-    gradient.addColorStop(1, 'black');
-    ctx.fillStyle = gradient;
+    if (this.hp <= 0 && !this.dead) return;
+    // Draw healthbar
+    drawHealthbar(this.x, this.y - CAITLYN_RADIUS - 24, 44, 7, this.hp, CAITLYN_BASE_HP + this.getBonusHP());
+    // Draw attack range circle
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(this.x, this.y, CAITLYN_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Draw a small white "netted" or "trapped" indicator above if trapped/netted
-    if (this.trapped || this.netted) {
-      ctx.fillStyle = '#00ffff';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('☣', this.x - 7, this.y - CAITLYN_RADIUS - 10);
+    ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,0,0.25)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    if (this.dead) {
+      ctx.save();
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillStyle = TEAM_COLORS[this.team];
+      ctx.textAlign = 'center';
+      ctx.fillText('Respawn: ' + Math.ceil(this.respawnTimer), this.x, this.y - CAITLYN_RADIUS - 18);
+      ctx.restore();
+      return;
     }
-
-    // Draw HP number
-    ctx.fillStyle = 'white';
-    ctx.font = '16px sans-serif';
-    ctx.fillText(this.hp, this.x - 5, this.y + 5);
-
-    // Draw headshot ready indicator as a red circle outline
-    if (this.headshotReady) {
-      ctx.strokeStyle = 'red';
-      ctx.lineWidth = 2;
+    if (this.isRecalling) {
+      // Blue recall circle
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(this.x, this.y, CAITLYN_RADIUS + 5, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, CAITLYN_RADIUS + 18, 0, Math.PI * 2);
+      ctx.strokeStyle = '#2196f3';
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.7;
       ctx.stroke();
-      ctx.lineWidth = 1;
+      // Channeling animation: rotating arc
+      const t = performance.now() / 1000;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, CAITLYN_RADIUS + 24, t % (2 * Math.PI), t % (2 * Math.PI) + Math.PI / 2);
+      ctx.strokeStyle = '#00eaff';
+      ctx.lineWidth = 5;
+      ctx.globalAlpha = 0.8;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      // Recall timer text
+      ctx.save();
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillStyle = '#00bcd4';
+      ctx.textAlign = 'center';
+      ctx.fillText('Recalling: ' + Math.ceil(this.recallTimer), this.x, this.y - CAITLYN_RADIUS - 18);
+      ctx.restore();
+      return;
+    }
+    // Draw items as icons above head
+    if (this.items.length > 0) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      let iconY = this.y - CAITLYN_RADIUS - 36;
+      let iconX = this.x;
+      let iconSize = 24;
+      let iconGap = 28;
+      let drawn = 0;
+      for (const it of this.items) {
+        if (it.icon.endsWith('.png')) {
+          let img = CaitlynAI.itemIcons[it.icon];
+          if (!img) {
+            img = new window.Image();
+            img.src = it.icon;
+            CaitlynAI.itemIcons[it.icon] = img;
+          }
+          ctx.drawImage(img, iconX + (drawn - (this.items.length-1)/2) * iconGap - iconSize/2, iconY - iconSize/2, iconSize, iconSize);
+        } else {
+          ctx.font = '20px sans-serif';
+          ctx.fillStyle = '#fff';
+          ctx.fillText(it.icon, iconX + (drawn - (this.items.length-1)/2) * iconGap, iconY);
+        }
+        drawn++;
+      }
+      ctx.restore();
+    }
+    if (this.isRecalling) return;
+    try {
+      // Log every draw call for debugging
+      // console.log('CaitlynAI.draw called', this.x, this.y);
+      // ABSOLUTE FIRST: Guard against NaN/invalid positions
+      if (!isFinite(this.x) || !isFinite(this.y)) {
+        console.error('NaN position in draw for Caitlyn:', this, new Error().stack);
+        this.x = 400;
+        this.y = 300;
+        // Draw a red square as a visible error marker
+        ctx.save();
+        ctx.fillStyle = 'red';
+        ctx.fillRect(390, 290, 20, 20);
+        ctx.restore();
+        return;
+      }
+      // Defensive: check before using in gradient
+      let cx = this.x, cy = this.y, r1 = CAITLYN_RADIUS / 2, r2 = CAITLYN_RADIUS;
+      if (![cx, cy, r1, r2].every(isFinite)) {
+        console.error('Non-finite value for gradient:', {cx, cy, r1, r2}, this, new Error().stack);
+        // Draw a yellow square as a visible error marker
+        ctx.save();
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(390, 290, 20, 20);
+        ctx.restore();
+        return;
+      }
+      // Draw Caitlyn sprite or fallback to circle
+      const SPRITE_SIZE = 64;
+      let drawX = this.x - SPRITE_SIZE / 2;
+      let drawY = this.y - SPRITE_SIZE / 2;
+      // Simple attack animation: scale up when attack just triggered
+      let scale = 1;
+      if (this.attackTimer > this.attackDelay - 0.15) scale = 1.15;
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.scale(scale, scale);
+      ctx.translate(-this.x, -this.y);
+      if (caitlynImgLoaded) {
+        ctx.drawImage(caitlynImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
+      } else {
+        // fallback: draw circle
+        let gradient = ctx.createRadialGradient(cx, cy, r1, cx, cy, r2);
+        gradient.addColorStop(0, this.color);
+        gradient.addColorStop(1, 'black');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, CAITLYN_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      // Draw HP number
+      ctx.fillStyle = 'white';
+      ctx.font = '16px sans-serif';
+      ctx.fillText(this.hp, this.x - 10, this.y + 5);
+      // Draw headshot ready indicator as a red circle outline
+      if (this.headshotReady) {
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, CAITLYN_RADIUS + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+      // Draw attack range (highly visible)
+      console.log('Caitlyn attack range:', this.attackRange);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      // Draw headshot stacks
+      ctx.fillStyle = this.headshotReady ? 'red' : 'orange';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`HS: ${this.basicAttackCount}/${inBrush(this.x, this.y) ? HEADSHOT_STACKS_BRUSH : HEADSHOT_STACKS_NEEDED}`, this.x - 20, this.y + 24);
+      // Draw trap/netted indicator
+      if (this.trapped || this.netted) {
+        ctx.fillStyle = '#00ffff';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('☣', this.x - 7, this.y - CAITLYN_RADIUS - 10);
+      }
+      // Draw a line to target if alive
+      if (this.targetIdx >= 0 && caitlyns[this.targetIdx] && caitlyns[this.targetIdx].hp > 0) {
+        ctx.save();
+        ctx.strokeStyle = this.color;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(caitlyns[this.targetIdx].x, caitlyns[this.targetIdx].y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+      // Draw team label above head
+      ctx.save();
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillStyle = TEAM_COLORS[this.team];
+      ctx.textAlign = 'center';
+      ctx.fillText(this.team === 0 ? 'T1' : 'T2', this.x, this.y - CAITLYN_RADIUS - 18);
+      ctx.restore();
+    } catch (e) {
+      console.error('Exception in CaitlynAI.draw:', e, this, new Error().stack);
+    }
+  }
+  // Calculate stats from items
+  getBonusAD() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); }
+  getBonusHP() { return this.items.reduce((s, it) => s + (it.hp || 0), 0); }
+  getBonusMS() { return this.items.reduce((s, it) => s + (it.ms || 0), 0); }
+  getBonusCrit() { return this.items.reduce((s, it) => s + (it.crit || 0), 0); }
+  // Add method to start recall (can be called by AI logic or UI)
+  startRecall() {
+    if (!this.isRecalling && !this.dead) {
+      this.isRecalling = true;
+      this.recallTimer = 5.0;
+      this.tookDamage = false;
     }
   }
 }
@@ -289,91 +1076,1295 @@ class CaitlynAI {
 let mutationRateSlider = document.getElementById('mutationRate');
 let attackBiasSlider = document.getElementById('attackBias');
 let speedSlider = document.getElementById('speed');
+const speed2000Btn = document.createElement('button');
+speed2000Btn.textContent = '2000x';
+speed2000Btn.style.marginLeft = '8px';
+speed2000Btn.style.fontWeight = 'bold';
+speed2000Btn.style.background = '#333';
+speed2000Btn.style.color = '#fff';
+speed2000Btn.style.border = '1px solid #888';
+speed2000Btn.style.borderRadius = '4px';
+speed2000Btn.style.font = '12px monospace';
+speed2000Btn.style.padding = '2px 8px';
+speed2000Btn.onclick = () => {
+  speedSlider.value = 2000;
+};
+speedSlider.parentNode.appendChild(speed2000Btn);
 let statsDiv = document.getElementById('stats');
 
 let generation = 1;
 let caitlyns = [];
 let projectiles = [];
+let basicProjectiles = [];
 
 let noDamageTimer = 15; // 15 seconds timeout for inactivity
+let generationStartTime = null;
 
-function initCaitlyns(brain) {
-  const colors = ['#8e44ad', '#00bcd4', '#e74c3c', '#2ecc71', '#f39c12'];
-  caitlyns = [];
-  for (let i = 0; i < 5; i++) {
-    const x = Math.random() * 760 + 20;
-    const y = Math.random() * 560 + 20;
-    const color = colors[i];
-    const b = brain ? CaitlynAI.mutate(brain, parseFloat(mutationRateSlider.value)) : undefined;
-    const c = new CaitlynAI(x, y, color, b);
+// Use localStorage for brain persistence
+const BRAIN_KEY = 'caitlyn_brain';
+let savedBrain = null;
 
-    // Randomly trap or net some enemies for demonstration (10% chance each)
-    c.trapped = Math.random() < 0.1;
-    c.netted = Math.random() < 0.1;
-
-    caitlyns.push(c);
+function loadBrain() {
+  try {
+    const data = localStorage.getItem(BRAIN_KEY);
+    if (data) {
+      let loaded = JSON.parse(data);
+      while (loaded.length < CaitlynAI.WEIGHTS_LEN) loaded.push(Math.random() * 2 - 1);
+      while (loaded.length > CaitlynAI.WEIGHTS_LEN) loaded.pop();
+      savedBrain = loaded;
+      console.log('Loaded saved brain from localStorage:', savedBrain);
+    }
+  } catch (e) {
+    console.log('No saved brain found, starting fresh.');
   }
 }
 
-initCaitlyns();
+function saveBrain(brain) {
+  localStorage.setItem(BRAIN_KEY, JSON.stringify(brain));
+}
 
-let lastTime = 0;
+function exportBrain() {
+  const data = localStorage.getItem(BRAIN_KEY);
+  if (!data) return alert('No brain to export!');
+  const blob = new Blob([data], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'caitlyn_brain.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
-function gameLoop(timestamp) {
-  if (!lastTime) lastTime = timestamp;
-  const delta = ((timestamp - lastTime) / 1000) * parseFloat(speedSlider.value);
-  lastTime = timestamp;
+function importBrain(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const brain = JSON.parse(e.target.result);
+      localStorage.setItem(BRAIN_KEY, JSON.stringify(brain));
+      savedBrain = brain;
+      alert('Brain imported! Reloading...');
+      location.reload();
+    } catch (err) {
+      alert('Invalid brain file.');
+    }
+  };
+  reader.readAsText(file);
+}
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// Add Export/Import buttons to UI
+const uiDiv = document.getElementById('ui');
+const exportBtn = document.createElement('button');
+exportBtn.textContent = 'Export Brain';
+exportBtn.onclick = exportBrain;
+uiDiv.appendChild(exportBtn);
+const importBtn = document.createElement('button');
+importBtn.textContent = 'Import Brain';
+importBtn.onclick = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = e => {
+    if (input.files && input.files[0]) importBrain(input.files[0]);
+  };
+  input.click();
+};
+uiDiv.appendChild(importBtn);
 
-  // Draw brush areas lightly to show "brush"
-  ctx.fillStyle = 'rgba(0, 100, 0, 0.2)';
-  brushAreas.forEach(area => {
-    ctx.fillRect(area.x, area.y, area.width, area.height);
-  });
+// Chart.js metrics for team stats
+let teamMetricsHistory = [];
+let teamChart;
 
-  caitlyns.forEach(c => { c.update(caitlyns, delta, projectiles); c.draw(); });
-  projectiles.forEach(p => { p.update(delta); p.draw(); });
-  projectiles = projectiles.filter(p => p.alive);
+// Add team metrics chart UI
+const teamGraphDiv = document.getElementById('teamGraphUI');
+teamGraphDiv.innerHTML = `
+  <label for="teamMetricSelect" style="color:white;margin-left:20px;">Team Metric: </label>
+  <select id="teamMetricSelect">
+    <option value="wins">Wins</option>
+    <option value="avgDPM">Avg DPM</option>
+    <option value="totalDPM">Total DPM</option>
+    <option value="gold">Gold</option>
+    <option value="avgRank">Grade</option>
+  </select>
+  <canvas id="teamMetricsChart" width="800" height="200" style="display:block;margin:10px auto 0 auto;background:#111;border-radius:8px;"></canvas>
+`;
 
-  // Damage detection and timer reset
-  let damageDone = false;
+// Add 'Gold' option to the metric selector
+const metricSelect = document.getElementById('teamMetricSelect');
+if (![...metricSelect.options].some(opt => opt.value === 'gold')) {
+  const goldOption = document.createElement('option');
+  goldOption.value = 'gold';
+  goldOption.textContent = 'Gold';
+  metricSelect.appendChild(goldOption);
+}
 
-  caitlyns.forEach(c => {
-    projectiles.forEach(p => {
-      if (c.hp > 0 && p.alive && Math.hypot(c.x - p.x, c.y - p.y) < CAITLYN_RADIUS + p.radius) {
-        c.hp--;
-        p.alive = false;
-        damageDone = true;
+// Add 'Grade' option to the metric selector
+if (![...metricSelect.options].some(opt => opt.value === 'avgRank')) {
+  const gradeOption = document.createElement('option');
+  gradeOption.value = 'avgRank';
+  gradeOption.textContent = 'Grade';
+  metricSelect.appendChild(gradeOption);
+}
+
+// Add 'Composite Score' option to the metric selector
+if (![...metricSelect.options].some(opt => opt.value === 'avgFitness')) {
+  const scoreOption = document.createElement('option');
+  scoreOption.value = 'avgFitness';
+  scoreOption.textContent = 'Composite Score';
+  metricSelect.appendChild(scoreOption);
+}
+
+// Map rank to numeric for graphing
+function rankToNumeric(rank) {
+  if (rank === 'S') return 5;
+  if (rank === 'A') return 4;
+  if (rank === 'B') return 3;
+  if (rank === 'C') return 2;
+  return 1;
+}
+
+// In updateTeamMetricsChart, handle avgFitness specially
+function updateTeamMetricsChart() {
+  const metric = document.getElementById('teamMetricSelect').value;
+  const labels = teamMetricsHistory.map(m => m.generation);
+  let datasets;
+  if (metric === 'avgFitness') {
+    datasets = [0, 1].map(t => ({
+      label: `Team ${t + 1}`,
+      data: teamMetricsHistory.map((m, i) => {
+        // Calculate average fitness for this team in this generation
+        if (!m.avgFitness) {
+          // Compute and cache if not present
+          const teamCaitlyns = (window.generationCaitlyns && window.generationCaitlyns[i]) ? window.generationCaitlyns[i][t] : [];
+          m.avgFitness = teamCaitlyns.length ? teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length : 0;
+        }
+        return m.avgFitness;
+      }),
+      borderColor: TEAM_COLORS[t],
+      backgroundColor: TEAM_COLORS[t] + '33',
+      fill: true,
+      tension: 0.2
+    }));
+  } else if (metric === 'avgRank') {
+    datasets = [0, 1].map(t => ({
+      label: `Team ${t + 1}`,
+      data: teamMetricsHistory.map(m => rankToNumeric(m.avgRank[t])),
+      borderColor: TEAM_COLORS[t],
+      backgroundColor: TEAM_COLORS[t] + '33',
+      fill: true,
+      tension: 0.2
+    }));
+  } else {
+    datasets = [0, 1].map(t => ({
+      label: `Team ${t + 1}`,
+      data: teamMetricsHistory.map(m => m[metric][t]),
+      borderColor: TEAM_COLORS[t],
+      backgroundColor: TEAM_COLORS[t] + '33',
+      fill: true,
+      tension: 0.2
+    }));
+  }
+  if (!teamChart) {
+    const ctx = document.getElementById('teamMetricsChart').getContext('2d');
+    teamChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: false,
+        plugins: { legend: { labels: { color: 'white' } } },
+        scales: {
+          x: { ticks: { color: 'white' }, grid: { color: '#444' } },
+          y: { ticks: { color: 'white' }, grid: { color: '#444' } }
+        }
       }
     });
-  });
-
-  if (damageDone) {
-    noDamageTimer = 15; // reset timer on damage
   } else {
-    noDamageTimer -= delta; // count down if no damage
+    teamChart.data.labels = labels;
+    teamChart.data.datasets = datasets;
+    teamChart.update();
   }
+}
+document.getElementById('teamMetricSelect').addEventListener('change', updateTeamMetricsChart);
 
-  const alive = caitlyns.filter(c => c.hp > 0);
+// 1. Add a 'Copy Graph Data' button to the team metrics graph section
+const copyGraphBtn = document.createElement('button');
+copyGraphBtn.textContent = 'Copy Graph Data';
+copyGraphBtn.style.marginLeft = '20px';
+copyGraphBtn.style.fontWeight = 'bold';
+copyGraphBtn.style.background = '#333';
+copyGraphBtn.style.color = '#fff';
+copyGraphBtn.style.border = '1px solid #888';
+copyGraphBtn.style.borderRadius = '4px';
+copyGraphBtn.style.font = '12px monospace';
+copyGraphBtn.style.padding = '2px 8px';
+copyGraphBtn.onclick = () => {
+  const metric = document.getElementById('teamMetricSelect').value;
+  let csv = 'Generation,Team 1,Team 2\n';
+  teamMetricsHistory.forEach(m => {
+    csv += `${m.generation},${m[metric][0]},${m[metric][1]}\n`;
+  });
+  navigator.clipboard.writeText(csv);
+  copyGraphBtn.textContent = 'Copied!';
+  setTimeout(() => { copyGraphBtn.textContent = 'Copy Graph Data'; }, 1200);
+};
+document.getElementById('teamMetricSelect').parentNode.appendChild(copyGraphBtn);
 
-  if (alive.length <= 1 || noDamageTimer <= 0) {
-    const winner = alive[0];
-    const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
-    const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
-    statsDiv.innerHTML =
-      `Generation: ${generation}<br>Avg Attacks: ${avgAttacks.toFixed(2)}<br>Avg Qs: ${avgQs.toFixed(2)}` +
-      (noDamageTimer <= 0 ? '<br><span style="color:#f39c12">Reset due to inactivity</span>' : '');
-    initCaitlyns(winner ? winner.brain : undefined);
-    projectiles = [];
-    generation++;
-    noDamageTimer = 15; // reset timer for next generation
+// Add Show/Hide Graph button to UI
+const graphToggleBtn = document.createElement('button');
+graphToggleBtn.textContent = 'Hide Graph';
+graphToggleBtn.style.marginTop = '8px';
+graphToggleBtn.onclick = function() {
+  const chart = document.getElementById('teamMetricsChart');
+  if (chart.style.display === 'none') {
+    chart.style.display = 'block';
+    graphToggleBtn.textContent = 'Hide Graph';
+  } else {
+    chart.style.display = 'none';
+    graphToggleBtn.textContent = 'Show Graph';
   }
+};
+document.getElementById('ui').appendChild(graphToggleBtn);
 
+// UI: slider box fixed to the left, simple style
+uiDiv.style.position = 'fixed';
+uiDiv.style.top = '20px';
+uiDiv.style.left = '20px';
+uiDiv.style.width = '220px';
+uiDiv.style.background = 'rgba(0,0,0,0.7)';
+uiDiv.style.zIndex = '20';
+uiDiv.style.maxWidth = 'none';
+uiDiv.style.height = 'auto';
+uiDiv.style.display = 'flex';
+uiDiv.style.flexDirection = 'column';
+uiDiv.style.alignItems = 'flex-start';
+uiDiv.style.justifyContent = 'flex-start';
+uiDiv.style.boxShadow = '';
+uiDiv.style.border = '';
+uiDiv.style.borderRadius = '';
+uiDiv.style.padding = '';
+
+// Team metrics graph: fixed at the top, full width, simple style
+teamGraphDiv.style.position = 'fixed';
+teamGraphDiv.style.top = '0';
+teamGraphDiv.style.left = '0';
+teamGraphDiv.style.width = '100vw';
+teamGraphDiv.style.background = '#222';
+teamGraphDiv.style.padding = '10px 0 0 0';
+teamGraphDiv.style.zIndex = '11';
+teamGraphDiv.style.borderRadius = '';
+teamGraphDiv.style.boxShadow = '';
+teamGraphDiv.style.border = '';
+teamGraphDiv.style.maxWidth = '';
+teamGraphDiv.style.maxHeight = '';
+teamGraphDiv.style.right = '';
+teamGraphDiv.style.bottom = '';
+
+// Remove vignette overlay if present
+const vignette = document.getElementById('vignetteOverlay');
+if (vignette) vignette.remove();
+
+// Remove all particle/overlay/advanced effect code (make spawnParticles, updateParticles, drawParticles no-ops)
+function spawnParticles() {}
+function updateParticles() {}
+function drawParticles() {}
+
+// Canvas background: plain color
+canvas.style.background = '#222';
+
+// Caitlyn, projectile, and bush drawing: simple, non-animated, no glows/shadows
+Ability.drawProjectile = function(x, y, color, type) {
+  ctx.beginPath();
+  ctx.arc(x, y, type === 'Q' ? 12 : 6, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = type === 'Q' ? 0.5 : 1;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+};
+BasicProjectile.prototype.draw = function() {
+  const x = this.x0 + (this.x1 - this.x0) * this.t;
+  const y = this.y0 + (this.y1 - this.y0) * this.t;
+  ctx.save();
+  
+  // Draw bullet trail
+  ctx.globalAlpha = 0.3;
+  ctx.strokeStyle = this.color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  
+  // Draw bullet
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, this.isHeadshot ? 6 : 4, 0, Math.PI * 2);
+  ctx.fillStyle = this.isHeadshot ? 'red' : this.color;
+  ctx.fill();
+  
+  // Add bullet tip
+  const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
+  ctx.beginPath();
+  ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  
+  ctx.restore();
+};
+// In the game loop, restore bush drawing:
+ctx.globalAlpha = 0.25;
+ctx.fillStyle = '#0a4';
+for (const b of bushList) {
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+  ctx.fill();
+}
+ctx.globalAlpha = 1;
+
+// Q Projectile class
+class QProjectile {
+  constructor(owner, x, y, angle) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.speed = Q_SPEED;
+    this.range = Q_RANGE;
+    this.width = Q_WIDTH;
+    this.expanded = false;
+    this.distanceTraveled = 0;
+    this.alive = true;
+    this.hitTargets = new Set();
+  }
+  update(delta) {
+    if (!this.alive) return;
+    const dx = Math.cos(this.angle) * this.speed * delta;
+    const dy = Math.sin(this.angle) * this.speed * delta;
+    this.x += dx;
+    this.y += dy;
+    this.distanceTraveled += Math.hypot(dx, dy);
+    // Stop at edge of map
+    if (this.x < 0 || this.x > CANVAS_WIDTH || this.y < 0 || this.y > CANVAS_HEIGHT || this.distanceTraveled > this.range) {
+      this.alive = false;
+      this.owner.qActive = false;
+      return;
+    }
+    // Hit detection
+    let hitCount = this.hitTargets.size;
+    for (const c of caitlyns) {
+      if (c.hp <= 0 || c.team === this.owner.team || this.hitTargets.has(c)) continue;
+      // Trapped targets always take full damage
+      let w = (hitCount === 0) ? Q_WIDTH : Q_WIDTH_EXPANDED;
+      // Expand after first hit
+      if (hitCount > 0) this.width = Q_WIDTH_EXPANDED;
+      // Check collision (circular hitbox vs. Q rectangle)
+      if (pointInRotatedRect(c.x, c.y, this.x, this.y, w, 1, this.angle)) {
+        let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
+        if (hitCount > 0 && !c.trapped) dmg *= Q_DAMAGE_FALLOFF;
+        c.hp -= Math.round(dmg);
+        this.owner.damageDealt += Math.round(dmg);
+        this.hitTargets.add(c);
+        hitCount++;
+        // Visual: spawn particles or effect
+        spawnParticles(c.x, c.y, '#00bcd4', 6, 3, 2);
+        // Expand width after first hit
+        if (hitCount === 1) this.width = Q_WIDTH_EXPANDED;
+      }
+    }
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+    // Draw Q body - make it thicker and more distinct
+    ctx.shadowColor = '#00bcd4';
+    ctx.shadowBlur = 32;
+    ctx.fillStyle = 'rgba(0,188,212,0.25)';
+    ctx.fillRect(-this.width/2, -12, this.width, 24); // Thicker
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#00bcd4';
+    ctx.fillRect(-this.width/2, -8, this.width, 16); // Thicker core
+    // Add energy effect
+    ctx.strokeStyle = '#00eaff';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-this.width/2, -12, this.width, 24);
+    ctx.restore();
+  }
+}
+// Helper: check if point is in rotated rectangle (for Q hitbox)
+function pointInRotatedRect(px, py, cx, cy, w, h, angle) {
+  // Translate point to origin
+  let dx = px - cx;
+  let dy = py - cy;
+  // Rotate point by -angle
+  let cos = Math.cos(-angle);
+  let sin = Math.sin(-angle);
+  let rx = dx * cos - dy * sin;
+  let ry = dx * sin + dy * cos;
+  // Check bounds
+  return Math.abs(rx) <= w/2 && Math.abs(ry) <= 24; // 24 px vertical tolerance for Q
+}
+
+function initCaitlyns(brain) {
+  caitlyns = [];
+  for (let t = 0; t < NUM_TEAMS; ++t) {
+    for (let i = 0; i < TEAM_SIZE; ++i) {
+      // Spawn Caitlyns at random positions across the map
+      const x = Math.random() * (CANVAS_WIDTH - 40) + 20;
+      const y = Math.random() * (CANVAS_HEIGHT - 40) + 20;
+      const color = TEAM_COLORS[t];
+      const b = brain ? CaitlynAI.mutate(brain, parseFloat(mutationRateSlider.value)) : undefined;
+      caitlyns.push(new CaitlynAI(x, y, color, t, b));
+    }
+  }
+}
+
+// Minion scaling per minute
+function getMinionScaling(minionType, gameMinutes) {
+  let scale = { hp: 0, ad: 0, gold: 0, armor: 0 };
+  if (minionType === 'melee' || minionType === 'caster') {
+    scale.hp = 10 * gameMinutes;
+    scale.ad = 1 * gameMinutes;
+    scale.gold = Math.floor(gameMinutes / 1.5); // ~1 gold per 90s
+    if (minionType === 'melee') scale.armor = Math.min(15, Math.floor(gameMinutes * 0.25));
+  } else if (minionType === 'cannon') {
+    scale.hp = 20 * gameMinutes;
+    scale.ad = 2 * gameMinutes;
+    scale.gold = Math.floor(gameMinutes * 0.6); // ~1 gold per 100s
+    scale.armor = Math.min(30, Math.floor(gameMinutes * 0.5));
+  } else if (minionType === 'super') {
+    scale.hp = 40 * gameMinutes;
+    scale.ad = 4 * gameMinutes;
+    scale.gold = Math.floor(gameMinutes * 1.5);
+    scale.armor = Math.min(60, Math.floor(gameMinutes * 1));
+  }
+  return scale;
+}
+
+// Minion class refactor
+class Minion {
+  constructor(team, lane, type, spawnTime) {
+    this.team = team;
+    this.lane = lane;
+    this.type = type;
+    this.spawnTime = spawnTime || 0;
+    this.spawnWave = 0;
+    // Defensive: check lane validity
+    if (!LANE_WAYPOINTS[lane]) {
+      console.error(`Invalid lane '${lane}' for minion. Defaulting to 'mid'.`);
+      this.lane = 'mid';
+    }
+    // Defensive: check type validity
+    let stats = MINION_TYPES[type];
+    if (!stats) {
+      console.error(`Invalid minion type '${type}' for minion. Defaulting to 'melee'.`);
+      this.type = 'melee';
+      stats = MINION_TYPES['melee'];
+    }
+    this.path = team === 0 ? LANE_WAYPOINTS[this.lane] : [...LANE_WAYPOINTS[this.lane]].reverse();
+    this.pathIdx = 0;
+    this.x = this.path[0]?.x ?? 0;
+    this.y = this.path[0]?.y ?? 0;
+    // Set stats from type
+    this.radius = stats.radius;
+    this.color = stats.color;
+    this.baseHp = stats.baseHp;
+    this.baseAd = stats.baseAd;
+    this.attackSpeed = stats.attackSpeed;
+    this.moveSpeed = stats.moveSpeed;
+    this.range = stats.range;
+    this.baseGold = stats.gold;
+    this.armor = stats.armor;
+    this.mr = stats.mr;
+    this.xp = stats.xp;
+    this.turretDmgReduction = stats.turretDmgReduction || 1.0;
+    this.hp = this.baseHp;
+    this.ad = this.baseAd;
+    this.gold = this.baseGold;
+    this.lastHitBy = null;
+    this.attackTimer = 0;
+    this.alive = true;
+    this.targetNexus = (team === 0) ? { x: NEXUS_POS[1].x, y: NEXUS_POS[1].y } : { x: NEXUS_POS[0].x, y: NEXUS_POS[0].y };
+    this.target = null;
+    this.armor = stats.armor;
+    this.mr = stats.mr;
+  }
+  update(delta, minions, caitlyns, nexuses, turrets, gameMinutes) {
+    if (!this.alive) return;
+    // Scaling
+    const scale = getMinionScaling(this.type, gameMinutes);
+    this.hp = Math.min(this.hp, this.baseHp + scale.hp);
+    this.ad = this.baseAd + scale.ad;
+    this.gold = this.baseGold + scale.gold;
+    this.armor = MINION_TYPES[this.type].armor + (scale.armor || 0);
+    // Pathing
+    this.attackTimer -= delta;
+    if (!this.path || this.path.length < 2) return;
+    if (!this.targetNexus) return;
+    // Target selection: prioritize enemy minion in range, then champion, then turret, then Nexus
+    let bestTarget = null;
+    let bestDist = 1e9;
+    // Bush vision: only target enemies in same bush or not in bush
+    const myBush = whichBush(this.x, this.y);
+    // 1. Enemy minion in range
+    for (const other of minions) {
+      if (other !== this && other.alive && other.team !== this.team) {
+        const otherBush = whichBush(other.x, other.y);
+        if (myBush !== -1 && otherBush !== myBush && otherBush !== -1) continue;
+        const dist = Math.hypot(this.x - other.x, this.y - other.y);
+        if (dist < this.range && dist < bestDist) {
+          bestTarget = other;
+          bestDist = dist;
+        }
+      }
+    }
+    // 2. Enemy Caitlyn in range
+    if (!bestTarget) {
+      for (const c of caitlyns) {
+        if (c.team !== this.team && c.hp > 0) {
+          const cBush = whichBush(c.x, c.y);
+          if (myBush !== -1 && cBush !== myBush && cBush !== -1) continue;
+          const dist = Math.hypot(this.x - c.x, this.y - c.y);
+          if (dist < this.range && dist < bestDist) {
+            bestTarget = c;
+            bestDist = dist;
+          }
+        }
+      }
+    }
+    // 3. Enemy turret in range
+    if (!bestTarget) {
+      for (const turret of turrets) {
+        if (turret.team !== this.team && turret.hp > 0) {
+          const dist = Math.hypot(this.x - turret.x, this.y - turret.y);
+          if (dist < this.range + 24 && dist < bestDist) {
+            bestTarget = turret;
+            bestDist = dist;
+          }
+        }
+      }
+    }
+    // 4. Enemy Nexus in range
+    if (!bestTarget) {
+      const enemyNexus = nexuses[1 - this.team];
+      const dist = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
+      if (dist < this.range + NEXUS_RADIUS) {
+        bestTarget = enemyNexus;
+        bestDist = dist;
+      }
+    }
+    this.target = bestTarget;
+    // Attack if in range
+    if (this.target && this.attackTimer <= 0) {
+      if (this.target.hp !== undefined) {
+        let dmg = this.ad;
+        // Turret damage reduction
+        if (this.target instanceof Turret && this.turretDmgReduction < 1.0) {
+          dmg *= this.turretDmgReduction;
+        }
+        // Super minion turret reduction
+        if (this.type === 'super' && this.target instanceof Turret) {
+          dmg *= 0.5;
+        }
+        this.target.hp -= dmg;
+        if (this.target.hp <= 0 && this.target instanceof Minion && this.target.lastHitBy) {
+          this.target.lastHitBy.gold += this.target.gold;
+          this.target.lastHitBy.minionLastHits = (this.target.lastHitBy.minionLastHits || 0) + 1;
+        }
+      }
+      this.attackTimer = 1.0 / this.attackSpeed;
+    }
+    // Move if not attacking
+    if (!this.target) {
+      // Path following: move toward next waypoint
+      const nextIdx = this.pathIdx + 1;
+      if (nextIdx < this.path.length) {
+        const targetPt = this.path[nextIdx];
+        if (!targetPt) return;
+        const dx = targetPt.x - this.x;
+        const dy = targetPt.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 2) {
+          this.x += (dx / dist) * this.moveSpeed * delta;
+          this.y += (dy / dist) * this.moveSpeed * delta;
+        }
+        if (dist < 20 && this.pathIdx < this.path.length - 2) this.pathIdx++;
+      }
+    }
+    // Die if HP <= 0
+    if (this.hp <= 0 && this.alive) {
+      this.alive = false;
+      if (this.lastHitBy && this.lastHitBy.team !== this.team) {
+        this.lastHitBy.gold += this.gold;
+        this.lastHitBy.minionLastHits = (this.lastHitBy.minionLastHits || 0) + 1;
+      }
+    }
+  }
+  draw() {
+    if (!this.alive) return;
+    drawHealthbar(this.x, this.y - this.radius - 14, 32, 6, this.hp, this.baseHp);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(Math.round(this.hp), this.x - 10, this.y + 4);
+    ctx.restore();
+  }
+}
+
+// Nexus class
+class Nexus {
+  constructor(x, y, team) {
+    this.x = x;
+    this.y = y;
+    this.team = team;
+    this.hp = NEXUS_HP;
+  }
+  draw() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, NEXUS_RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = TEAM_COLORS[this.team];
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('Nexus', this.x - 28, this.y + 8);
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(this.hp, this.x - 18, this.y + 32);
+    ctx.restore();
+  }
+}
+
+// Turret class: only insta-kill Caitlyns, not minions
+class Turret {
+  constructor(x, y, team) {
+    this.x = x;
+    this.y = y;
+    this.team = team;
+    this.range = TURRET_RANGE;
+    this.hp = 1000; // Optional: turrets can have HP if you want minions to attack them
+    this.maxHp = 1000;
+    this.attackCooldowns = new Map(); // Map from Caitlyn to cooldown
+    this.destroyed = false;
+  }
+  update(caitlyns, minions) {
+    // Deal fixed damage to any enemy Caitlyn in range, 1s cooldown per target
+    for (const c of caitlyns) {
+      if (c.team !== this.team && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < this.range) {
+        let cd = this.attackCooldowns.get(c) || 0;
+        if (cd <= 0) {
+          // Spawn projectile if not already one targeting this Caitlyn from this turret
+          const already = turretProjectiles.some(p => p.turret === this && p.target === c && p.alive);
+          if (!already) {
+            turretProjectiles.push(new TurretProjectile(this, c));
+            this.attackCooldowns.set(c, 1.0); // 1s cooldown
+          }
+        } else {
+          this.attackCooldowns.set(c, cd - 1/60); // Assume 60 FPS for cooldown decrement
+        }
+      } else {
+        this.attackCooldowns.set(c, 0);
+      }
+    }
+    // Apply damage when projectile reaches target
+    for (const p of turretProjectiles) {
+      if (p.turret === this && p.alive && p.target && Math.hypot(p.x - p.target.x, p.y - p.target.y) < 8) {
+        if (p.target.hp > 0) p.target.hp -= 180;
+        p.alive = false;
+      }
+    }
+    // Minions do NOT get insta-killed
+    if (this.hp <= 0 && !this.destroyed) {
+      this.destroyed = true;
+      // Award turret participation to Caitlyns in range
+      for (const c of caitlyns) {
+        if (c.team !== this.team && Math.hypot(c.x - this.x, c.y - this.y) < this.range + 40) {
+          c.turretsDestroyed = (c.turretsDestroyed || 0) + 1;
+        }
+      }
+    }
+  }
+  draw() {
+    ctx.save();
+    // Draw healthbar
+    drawHealthbar(this.x, this.y - 36, 48, 8, this.hp, NEXUS_HP / 2);
+    // Draw range indicator
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
+    ctx.strokeStyle = this.team === 0 ? '#8e44ad' : '#e74c3c';
+    ctx.globalAlpha = 0.15;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Draw turret body
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 24, 0, Math.PI * 2);
+    ctx.fillStyle = this.team === 0 ? '#8e44ad' : '#e74c3c';
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('Turret', this.x - 24, this.y + 6);
+    ctx.restore();
+  }
+}
+
+// Nexus constants
+const NEXUS_HP = 2000;
+const NEXUS_RADIUS = 40;
+const MINION_SPAWN_INTERVAL = 2; // seconds between minion spawns
+// Nexus positions (true corners)
+const NEXUS_POS = [
+  { x: 0 + NEXUS_RADIUS, y: CANVAS_HEIGHT - NEXUS_RADIUS }, // Blue (bottom left)
+  { x: CANVAS_WIDTH - NEXUS_RADIUS, y: 0 + NEXUS_RADIUS }   // Red (top right)
+];
+
+// Lane waypoints (aligned to new corners)
+const LANE_WAYPOINTS = {
+  bot: [
+    { x: NEXUS_POS[0].x, y: NEXUS_POS[0].y },
+    { x: 200, y: CANVAS_HEIGHT - 200 },
+    { x: 400, y: CANVAS_HEIGHT - 400 },
+    { x: 800, y: CANVAS_HEIGHT - 600 },
+    { x: CANVAS_WIDTH - 200, y: 200 },
+    { x: NEXUS_POS[1].x, y: NEXUS_POS[1].y }
+  ],
+  top: [
+    { x: NEXUS_POS[0].x, y: NEXUS_POS[0].y },
+    { x: 0 + NEXUS_RADIUS, y: 200 },
+    { x: 0 + NEXUS_RADIUS, y: 0 + NEXUS_RADIUS },
+    { x: 200, y: 0 + NEXUS_RADIUS },
+    { x: CANVAS_WIDTH - 200, y: 0 + NEXUS_RADIUS },
+    { x: NEXUS_POS[1].x, y: NEXUS_POS[1].y }
+  ],
+  mid: [
+    { x: NEXUS_POS[0].x, y: NEXUS_POS[0].y },
+    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
+    { x: NEXUS_POS[1].x, y: NEXUS_POS[1].y }
+  ]
+};
+
+// Turret positions (aligned to lanes)
+const TURRET_POSITIONS = [
+  // Blue team turrets
+  [
+    // Bot lane (square contour)
+    { x: 200, y: CANVAS_HEIGHT - 200 },
+    { x: 400, y: CANVAS_HEIGHT - 400 },
+    { x: 800, y: CANVAS_HEIGHT - 600 },
+    // Top lane (square contour)
+    { x: 0 + NEXUS_RADIUS, y: 200 },
+    { x: 0 + NEXUS_RADIUS, y: 0 + NEXUS_RADIUS },
+    { x: 200, y: 0 + NEXUS_RADIUS },
+    // Mid lane (straight through center)
+    { x: CANVAS_WIDTH / 4, y: CANVAS_HEIGHT * 3 / 4 },
+    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
+    { x: CANVAS_WIDTH * 3 / 4, y: CANVAS_HEIGHT / 4 }
+  ],
+  // Red team turrets
+  [
+    // Bot lane (square contour)
+    { x: CANVAS_WIDTH - 200, y: 200 },
+    { x: CANVAS_WIDTH - 400, y: 400 },
+    { x: CANVAS_WIDTH - 800, y: 600 },
+    // Top lane (square contour)
+    { x: CANVAS_WIDTH - NEXUS_RADIUS, y: CANVAS_HEIGHT - 200 },
+    { x: CANVAS_WIDTH - NEXUS_RADIUS, y: CANVAS_HEIGHT - NEXUS_RADIUS },
+    { x: CANVAS_WIDTH - 200, y: CANVAS_HEIGHT - NEXUS_RADIUS },
+    // Mid lane (straight through center)
+    { x: CANVAS_WIDTH * 3 / 4, y: CANVAS_HEIGHT / 4 },
+    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
+    { x: CANVAS_WIDTH / 4, y: CANVAS_HEIGHT * 3 / 4 }
+  ]
+];
+
+let nexuses = [
+  new Nexus(NEXUS_POS[0].x, NEXUS_POS[0].y, 0),
+  new Nexus(NEXUS_POS[1].x, NEXUS_POS[1].y, 1)
+];
+let minions = [];
+let turrets = [];
+let minionSpawnTimers = [0, 0];
+let minionWaveNumbers = [0, 0]; // Track wave number for each team
+const MINION_WAVE_INTERVAL = 25; // seconds
+const FIRST_WAVE_TIME = 10; // seconds
+
+// Add global array for turret projectiles
+let turretProjectiles = [];
+
+// Add global array for net projectiles
+let netProjectiles = [];
+
+function main() {
+  loadBrain();
+  initCaitlyns(savedBrain);
   requestAnimationFrame(gameLoop);
 }
 
-requestAnimationFrame(gameLoop);
+main();
+
+let lastTime = 0;
+let allowRespawn = true;
+let justReset = false;
+
+function gameLoop(timestamp) {
+  console.log('GAMELOOP ENTERED');
+  console.log('LOOP DEBUG:', {
+    generation,
+    caitlyns: caitlyns.map(c => ({hp: c.hp, dead: c.dead, x: c.x, y: c.y})),
+    generationStartTime,
+    lastTime,
+    justReset
+  });
+  try {
+    if (justReset) {
+      justReset = false;
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+    if (!lastTime) lastTime = timestamp;
+    if (generationStartTime === null) generationStartTime = timestamp;
+    const delta = ((timestamp - lastTime) / 1000) * parseFloat(speedSlider.value);
+    lastTime = timestamp;
+    const gameSeconds = (timestamp - generationStartTime) / 1000;
+    const gameMinutes = gameSeconds / 60;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw bushes
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#0a4';
+    for (const b of bushList) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw all traps for all Caitlyns
+    caitlyns.forEach(c => c.traps.forEach(trap => trap.draw()));
+
+    // Minion spawn logic (Wild Rift style)
+    for (let t = 0; t < 2; ++t) {
+      minionSpawnTimers[t] += delta;
+      if ((minionWaveNumbers[t] === 0 && gameSeconds >= FIRST_WAVE_TIME) || (minionWaveNumbers[t] > 0 && minionSpawnTimers[t] >= MINION_WAVE_INTERVAL)) {
+        minionWaveNumbers[t]++;
+        const isLateGame = gameSeconds >= 20 * 60;
+        for (const lane of LANES_LIST) {
+          // Check for super minion spawn (TODO: implement inhibitor turret destroyed check)
+          let spawnSuper = false; // Set to true if inhib turret destroyed in this lane
+          // Standard wave: 3 melee, 3 caster
+          // Every 3rd wave: 2 melee, 1 cannon, 3 caster
+          // After 20 min: every wave has 1 cannon
+          if (spawnSuper) {
+            minions.push(new Minion(t, lane, 'super', gameSeconds));
+          } else {
+            if (isLateGame || (minionWaveNumbers[t] >= 3 && (minionWaveNumbers[t] - 1) % 3 === 0)) {
+              // 2 melee, 1 cannon, 3 caster
+              for (let i = 0; i < 2; ++i) minions.push(new Minion(t, lane, 'melee', gameSeconds));
+              minions.push(new Minion(t, lane, 'cannon', gameSeconds));
+              for (let i = 0; i < 3; ++i) minions.push(new Minion(t, lane, 'caster', gameSeconds));
+            } else {
+              // 3 melee, 3 caster
+              for (let i = 0; i < 3; ++i) minions.push(new Minion(t, lane, 'melee', gameSeconds));
+              for (let i = 0; i < 3; ++i) minions.push(new Minion(t, lane, 'caster', gameSeconds));
+            }
+            // Add extra minions to make waves bigger
+            for (let i = 0; i < 2; ++i) minions.push(new Minion(t, lane, 'melee', gameSeconds));
+            for (let i = 0; i < 2; ++i) minions.push(new Minion(t, lane, 'caster', gameSeconds));
+          }
+        }
+        minionSpawnTimers[t] = 0;
+      }
+    }
+    // Update/draw minions
+    minions.forEach(m => m.update(delta, minions, caitlyns, nexuses, turrets, gameMinutes));
+    minions = minions.filter(m => m.alive);
+    minions.forEach(m => m.draw());
+    // Update and draw turrets
+    turrets.forEach(t => t.update(caitlyns, minions));
+    turrets.forEach(t => t.draw());
+    // Draw nexuses above turrets
+    nexuses.forEach(n => n.draw());
+
+    caitlyns.forEach(c => {
+      // Throttle movement command
+      const now = performance.now() / 1000;
+      if (now - c.lastMoveCommandTime > 0.25) {
+        const { moveX, moveY } = c.decide(caitlyns, minions, turrets);
+        c.cachedMove.x = moveX;
+        c.cachedMove.y = moveY;
+        c.lastMoveCommandTime = now;
+      }
+      const moveX = c.cachedMove.x;
+      const moveY = c.cachedMove.y;
+      c.update(caitlyns, delta, projectiles, minions, turrets);
+      c.draw();
+    });
+    projectiles.forEach(p => { p.update(delta); p.draw(); });
+    projectiles = projectiles.filter(p => p.alive);
+
+    basicProjectiles.forEach(p => p.update(delta));
+    basicProjectiles.forEach(p => p.draw());
+    basicProjectiles = basicProjectiles.filter(p => p.alive);
+
+    // Damage detection and timer reset
+    let damageDone = false;
+    caitlyns.forEach(c => {
+      projectiles.forEach(p => {
+        if (c.hp > 0 && p.alive && Math.hypot(c.x - p.x, c.y - p.y) < CAITLYN_RADIUS + p.radius) {
+          c.hp--;
+          p.alive = false;
+          damageDone = true;
+          if (c.isRecalling) c.tookDamage = true;
+        }
+      });
+    });
+
+    // Restore original reset logic: Nexus destroyed
+    if (nexuses[0].hp <= 0 || nexuses[1].hp <= 0) {
+      // Composite Wild Rift-style score
+      for (const c of caitlyns) {
+        c.unspentGold = c.gold;
+        c.survived = (c.hp > 0 && !c.dead);
+        c.fitness = 0;
+        c.fitness += c.kills * 50;
+        c.fitness += c.assists * 30;
+        c.fitness -= c.deaths * 80;
+        c.fitness += c.minionLastHits * 1;
+        c.fitness += c.turretsDestroyed * 100;
+        c.fitness += c.damageDealt * 0.1;
+        c.fitness += c.goldSpent * 0.02;
+        c.fitness -= Math.floor(c.idleTime / 5) * 10;
+        c.fitness += c.bushTime * 0.5;
+        c.fitness += c.nexusDamage * 0.2;
+        c.fitness -= c.unspentGold * 0.01;
+        c.fitness += c.survived ? 50 : 0;
+        c.fitness += c.turretDamage * 0.05;
+      }
+      let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
+      const genDuration = (timestamp - generationStartTime) / 1000;
+      const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
+      const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
+      statsDiv.innerHTML =
+        `Generation: ${generation}<br>` +
+        `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+        `Avg Qs: ${avgQs.toFixed(2)}` +
+        '<br><span style="color:#f39c12">Reset due to inactivity</span>';
+      // Team metrics
+      let teamWins = [0, 0];
+      let teamAvgDPM = [0, 0];
+      let teamTotalDPM = [0, 0];
+      let teamGold = [0, 0];
+      // Count wins (optional, not used for evolution)
+      if (winner) teamWins[winner.team] = 1;
+      // Calculate DPS and total damage per team
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        const dpmList = teamCaitlyns.map(c => genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0);
+        teamAvgDPM[t] = dpmList.reduce((s, d) => s + d, 0) / dpmList.length;
+        teamTotalDPM[t] = teamCaitlyns.reduce((s, c) => s + (genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0), 0);
+        teamGold[t] = teamCaitlyns.reduce((s, c) => s + c.gold, 0);
+      }
+      // Add a function to convert fitness to a rank
+      function fitnessToRank(fitness) {
+        if (fitness > 900) return 'S';
+        if (fitness > 700) return 'A';
+        if (fitness > 500) return 'B';
+        if (fitness > 300) return 'C';
+        return 'D';
+      }
+      // In the gameLoop, after calculating team metrics, add average rank calculation:
+      let teamAvgRank = [0, 0];
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        const avgFitness = teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length;
+        teamAvgRank[t] = fitnessToRank(avgFitness);
+      }
+      // Add to teamMetricsHistory
+      teamMetricsHistory.push({
+        generation,
+        wins: teamWins.slice(),
+        avgDPM: teamAvgDPM.slice(),
+        totalDPM: teamTotalDPM.slice(),
+        gold: teamGold.slice(),
+        avgRank: teamAvgRank.slice()
+      });
+      updateTeamMetricsChart();
+      if (winner) {
+        saveBrain(winner.brain);
+      }
+      // Reset nexuses
+      nexuses = [
+        new Nexus(NEXUS_POS[0].x, NEXUS_POS[0].y, 0),
+        new Nexus(NEXUS_POS[1].x, NEXUS_POS[1].y, 1)
+      ];
+      // Reset turrets
+      turrets = [];
+      for (let team = 0; team < 2; ++team) {
+        for (const pos of TURRET_POSITIONS[team]) {
+          turrets.push(new Turret(pos.x, pos.y, team));
+        }
+      }
+      // Clear minions and reset spawn timers
+      minions = [];
+      minionSpawnTimers = [0, 0];
+      minionWaveNumbers = [0, 0];
+      initCaitlyns(winner ? winner.brain : undefined);
+      projectiles = [];
+      generation++;
+      lastTime = 0;
+      generationStartTime = null;
+      justReset = true;
+      requestAnimationFrame(gameLoop);
+      return; // End this frame
+    }
+    // Restore original reset logic: all Caitlyns dead
+    const aliveCaitlyns = caitlyns.filter(c => c.hp > 0 && !c.dead);
+    if (aliveCaitlyns.length === 0) {
+      // End generation: pass on genes of highest-grade Caitlyn
+      for (const c of caitlyns) {
+        c.unspentGold = c.gold;
+        c.survived = (c.hp > 0 && !c.dead);
+        c.fitness = 0;
+        c.fitness += c.kills * 50;
+        c.fitness += c.assists * 30;
+        c.fitness -= c.deaths * 80;
+        c.fitness += c.minionLastHits * 1;
+        c.fitness += c.turretsDestroyed * 100;
+        c.fitness += c.damageDealt * 0.1;
+        c.fitness += c.goldSpent * 0.02;
+        c.fitness -= Math.floor(c.idleTime / 5) * 10;
+        c.fitness += c.bushTime * 0.5;
+        c.fitness += c.nexusDamage * 0.2;
+        c.fitness -= c.unspentGold * 0.01;
+        c.fitness += c.survived ? 50 : 0;
+        c.fitness += c.turretDamage * 0.05;
+      }
+      let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
+      const genDuration = (timestamp - generationStartTime) / 1000;
+      const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
+      const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
+      statsDiv.innerHTML =
+        `Generation: ${generation}<br>` +
+        `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+        `Avg Qs: ${avgQs.toFixed(2)}` +
+        '<br><span style="color:#f39c12">Reset: all Caitlyns eliminated</span>';
+      // Team metrics
+      let teamWins = [0, 0];
+      let teamAvgDPM = [0, 0];
+      let teamTotalDPM = [0, 0];
+      let teamGold = [0, 0];
+      if (winner) teamWins[winner.team] = 1;
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        const dpmList = teamCaitlyns.map(c => genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0);
+        teamAvgDPM[t] = dpmList.reduce((s, d) => s + d, 0) / dpmList.length;
+        teamTotalDPM[t] = teamCaitlyns.reduce((s, c) => s + (genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0), 0);
+        teamGold[t] = teamCaitlyns.reduce((s, c) => s + c.gold, 0);
+      }
+      function fitnessToRank(fitness) {
+        if (fitness > 900) return 'S';
+        if (fitness > 700) return 'A';
+        if (fitness > 500) return 'B';
+        if (fitness > 300) return 'C';
+        return 'D';
+      }
+      let teamAvgRank = [0, 0];
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        const avgFitness = teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length;
+        teamAvgRank[t] = fitnessToRank(avgFitness);
+      }
+      teamMetricsHistory.push({
+        generation,
+        wins: teamWins.slice(),
+        avgDPM: teamAvgDPM.slice(),
+        totalDPM: teamTotalDPM.slice(),
+        gold: teamGold.slice(),
+        avgRank: teamAvgRank.slice()
+      });
+      updateTeamMetricsChart();
+      if (winner) {
+        saveBrain(winner.brain);
+      }
+      nexuses = [
+        new Nexus(NEXUS_POS[0].x, NEXUS_POS[0].y, 0),
+        new Nexus(NEXUS_POS[1].x, NEXUS_POS[1].y, 1)
+      ];
+      turrets = [];
+      for (let team = 0; team < 2; ++team) {
+        for (const pos of TURRET_POSITIONS[team]) {
+          turrets.push(new Turret(pos.x, pos.y, team));
+        }
+      }
+      minions = [];
+      minionSpawnTimers = [0, 0];
+      minionWaveNumbers = [0, 0];
+      initCaitlyns(winner ? winner.brain : undefined);
+      projectiles = [];
+      generation++;
+      lastTime = 0;
+      generationStartTime = null;
+      justReset = true;
+      requestAnimationFrame(gameLoop);
+      return; // End this frame
+    }
+  } catch (e) {
+    console.error('Exception in gameLoop:', e, e && e.stack ? e.stack : new Error().stack);
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+// Static property for item icon images
+CaitlynAI.itemIcons = {};
+
+// Lane list for iteration
+const LANES_LIST = ["top", "mid", "bot"];
+
+const Q_COOLDOWN = 10; // seconds, adjust as needed for balance
+
+document.getElementById('teamMetricsChart').style.display = 'none';
+graphToggleBtn.textContent = 'Show Graph';
+
+// Show average rank in the UI
+const rankDiv = document.getElementById('teamAvgRank') || (() => {
+  const d = document.createElement('div');
+  d.id = 'teamAvgRank';
+  d.style.color = 'white';
+  d.style.marginTop = '8px';
+  document.getElementById('ui').appendChild(d);
+  return d;
+})();
+const last = teamMetricsHistory[teamMetricsHistory.length-1];
+if (last && last.avgRank) {
+  rankDiv.innerHTML = `Team 1 Avg Rank: <b>${last.avgRank[0]}</b> &nbsp; Team 2 Avg Rank: <b>${last.avgRank[1]}</b>`;
+} else {
+  rankDiv.innerHTML = '';
+}
+
+// Add healthbar drawing helper
+function drawHealthbar(x, y, width, height, hp, maxHp) {
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x - width/2, y, width, height);
+  ctx.fillStyle = hp > 0 ? (hp / maxHp > 0.5 ? '#4caf50' : '#fbc02d') : '#e74c3c';
+  ctx.fillRect(x - width/2, y, Math.max(0, width * Math.max(0, hp) / maxHp), height);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x - width/2, y, width, height);
+  ctx.restore();
+}
+
+// TurretProjectile class
+class TurretProjectile {
+  constructor(turret, target) {
+    this.turret = turret;
+    this.target = target;
+    this.x = turret.x;
+    this.y = turret.y;
+    this.speed = 900; // px/sec
+    this.alive = true;
+  }
+  update(delta) {
+    if (!this.alive || !this.target || this.target.hp <= 0) return;
+    const dx = this.target.x - this.x;
+    const dy = this.target.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 8) {
+      this.alive = false;
+      // Damage is applied in turret logic
+      return;
+    }
+    const move = Math.min(this.speed * delta, dist);
+    this.x += (dx / dist) * move;
+    this.y += (dy / dist) * move;
+  }
+  draw() {
+    if (!this.alive) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffeb3b';
+    ctx.globalAlpha = 0.9;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#e74c3c';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// NetProjectile class
+class NetProjectile {
+  constructor(owner, x, y, angle) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.speed = 700;
+    this.range = 350;
+    this.distanceTraveled = 0;
+    this.radius = 12;
+    this.alive = true;
+  }
+  update(delta, caitlyns) {
+    if (!this.alive) return;
+    const dx = Math.cos(this.angle) * this.speed * delta;
+    const dy = Math.sin(this.angle) * this.speed * delta;
+    this.x += dx;
+    this.y += dy;
+    this.distanceTraveled += Math.hypot(dx, dy);
+    if (this.distanceTraveled > this.range) {
+      this.alive = false;
+      return;
+    }
+    // Hit detection
+    for (const c of caitlyns) {
+      if (c === this.owner || c.hp <= 0 || c.team === this.owner.team) continue;
+      if (Math.hypot(c.x - this.x, c.y - this.y) < this.radius + CAITLYN_RADIUS) {
+        // Apply magic damage and slow
+        c.hp -= 120; // base magic damage (can scale if you want)
+        c.eSlowTimer = 1.5;
+        c.eSlowedBy = this.owner;
+        this.alive = false;
+        break;
+      }
+    }
+  }
+  draw() {
+    if (!this.alive) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#00eaff';
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#2196f3';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 </script>
 </body>
 </html>
