@@ -1966,38 +1966,9 @@ let turretProjectiles = [];
 let netProjectiles = [];
 
 function main() {
-  // Show loading screen
-  const loadingScreen = document.getElementById('loadingScreen');
-  const loadingProgress = document.getElementById('loadingProgress');
-  const loadingText = document.getElementById('loadingText');
-  
-  let progress = 0;
-  const loadingInterval = setInterval(() => {
-    progress += Math.random() * 15;
-    if (progress > 100) progress = 100;
-    
-    loadingProgress.style.width = progress + '%';
-    
-    if (progress < 30) {
-      loadingText.textContent = 'Initializing AI Neural Networks...';
-    } else if (progress < 60) {
-      loadingText.textContent = 'Loading Game Assets...';
-    } else if (progress < 90) {
-      loadingText.textContent = 'Preparing Battle Arena...';
-    } else {
-      loadingText.textContent = 'Starting Battle Simulation...';
-    }
-    
-    if (progress >= 100) {
-      clearInterval(loadingInterval);
-      setTimeout(() => {
-        loadingScreen.classList.add('hidden');
-        loadBrain();
-        initCaitlyns(savedBrain);
-        requestAnimationFrame(gameLoop);
-      }, 500);
-    }
-  }, 100);
+  loadBrain();
+  initCaitlyns(savedBrain);
+  requestAnimationFrame(gameLoop);
 }
 
 main();
@@ -2553,25 +2524,29 @@ function resetGame() {
   }
 }
 
-// Enhanced UI interactions
+// Enhanced UI interactions (safe version)
 document.addEventListener('DOMContentLoaded', function() {
-  // Add hover effects to controls
+  // Add hover effects to controls if they exist
   const controls = document.querySelectorAll('.control-group');
-  controls.forEach(control => {
-    control.addEventListener('mouseenter', function() {
-      this.style.transform = 'translateY(-2px)';
-      this.style.boxShadow = '0 4px 16px rgba(52, 152, 219, 0.4)';
+  if (controls.length > 0) {
+    controls.forEach(control => {
+      control.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 4px 16px rgba(52, 152, 219, 0.4)';
+      });
+      
+      control.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+      });
     });
-    
-    control.addEventListener('mouseleave', function() {
-      this.style.transform = 'translateY(0)';
-      this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-    });
-  });
+  }
   
-  // Add pulse animation to important elements
+  // Add pulse animation to header if it exists
   const header = document.querySelector('.header h1');
-  if (header) header.classList.add('pulse');
+  if (header) {
+    header.classList.add('pulse');
+  }
 });
 
 </script>
