@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Caitlyn AI Free For All with Abilities and Headshot</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #1e1e1e; color: white; font-family: sans-serif; }
+  canvas { display: block; margin: auto; background: #222; }
+  #ui {
+    position: absolute;
+    top: 10px; left: 10px;
+    background: rgba(0,0,0,0.6);
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 300px;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <label>Mutation Rate: <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1" /></label><br />
+  <label>Attack Bias: <input type="range" id="attackBias" min="-1" max="1" step="0.05" value="0" /></label><br />
+  <label>Speed: <input type="range" id="speed" min="0.1" max="2000" step="0.1" value="1" /></label><br />
+  <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
+</div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const CAITLYN_RADIUS = 20;
+const BASE_ATTACK_RANGE = 65; // base attack range in px
+const HEADSHOT_RANGE_MULTIPLIER = 2; // double range if trapped/netted
+const ATTACK_DELAY = 0.65;
+const Q_COOLDOWN = 5;
+const BASE_MOVE_SPEED = 3.3;
+const HEADSHOT_STACKS_NEEDED = 6;
+
+// Define brush areas (rectangles) where attacks build headshot stacks twice as fast
+const brushAreas = [
+  {x: 0, y: 0, width: 150, height: 600},    // left brush
+  {x: 650, y: 0, width: 150, height: 600},  // right brush
+];
+
+// Helper to check if point in brush
+function inBrush(x, y) {
+  return brushAreas.some(area =>
+    x >= area.x && x <= area.x + area.width &&
+    y >= area.y && y <= area.y + area.height
+  );
+}
+
+// Basic Ability drawing helper
+class Ability {
+  static drawProjectile(x, y, color, type) {
+    ctx.beginPath();
+    ctx.arc(x, y, type === 'Q' ? 12 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = type === 'Q' ? 0.5 : 1;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Projectile class
+class Projectile {
+  constructor(x, y, angle, speed, color, type) {
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.speed = speed;
+    this.color = color;
+    this.radius = type === 'Q' ? 12 : 6;
+    this.type = type;
+    this.alive = true;
+  }
+
+  update(delta) {
+    this.x += Math.cos(this.angle) * this.speed * delta;
+    this.y += Math.sin(this.angle) * this.speed * delta;
+    if (this.x < 0 || this.x > 800 || this.y < 0 || this.y > 600) this.alive = false;
+  }
+
+  draw() {
+    Ability.drawProjectile(this.x, this.y, this.color, this.type);
+  }
+}
+
+class CaitlynAI {
+  constructor(x, y, color, brain) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.hp = 3;
+    this.attackTimer = 0;
+    this.qTimer = Math.random() * Q_COOLDOWN;
+    this.attackAttempts = 0;
+    this.qAttempts = 0;
+    this.brain = brain || CaitlynAI.randomBrain();
+
+    // Headshot mechanic variables
+    this.basicAttackCount = 0;
+    this.headshotReady = false;
+    this.trapped = false;  // For simplicity, this can be set by traps/nets in the future
+    this.netted = false;   // Same as above
+  }
+
+  static randomBrain() {
+    return Array.from({ length: 10 }, () => Math.random() * 2 - 1);
+  }
+
+  static mutate(brain, rate) {
+    return brain.map(w => w + (Math.random() * 2 - 1) * rate);
+  }
+
+  // Decide which enemy to attack and movement
+  decide(enemies) {
+    const aliveEnemies = enemies.filter(e => e !== this && e.hp > 0);
+    if (aliveEnemies.length === 0) return { moveX: 0, moveY: 0, target: null, attack: false, useQ: false, qAngle: 0 };
+
+    // Find closest enemy
+    let closest = aliveEnemies[0];
+    let minDist = Infinity;
+    for (let e of aliveEnemies) {
+      const d = Math.hypot(e.x - this.x, e.y - this.y);
+      if (d < minDist) { minDist = d; closest = e; }
+    }
+
+    // Calculate move direction
+    const angle = Math.atan2(closest.y - this.y, closest.x - this.x);
+    const moveX = Math.cos(angle) * (this.brain[0] + this.brain[2]);
+    const moveY = Math.sin(angle) * (this.brain[1] + this.brain[3]);
+
+    // Determine attack range (headshot doubles range if trapped/netted)
+    let attackRange = BASE_ATTACK_RANGE;
+    if (closest.trapped || closest.netted) attackRange *= HEADSHOT_RANGE_MULTIPLIER;
+
+    // Check if headshot is ready (auto fires every 6th attack or instantly on trapped/netted)
+    const inRange = minDist <= attackRange;
+    const canAttack = inRange && this.attackTimer <= 0;
+    const headshotReady = this.headshotReady || (closest.trapped || closest.netted);
+
+    // Decide if attack (with bias)
+    const attack = canAttack && (Math.random() > this.brain[4]);
+
+    // Q usage: try to line up at least 2 enemies in a line within Q range
+    const qRange = 600; // Q max range
+    let useQ = false;
+    let qAngle = 0;
+
+    if (this.qTimer <= 0) {
+      // Check for best angle to hit max enemies in a line
+      let bestCount = 1;
+      let bestAngle = 0;
+      for (let i = 0; i < aliveEnemies.length; i++) {
+        const target = aliveEnemies[i];
+        const angleToTarget = Math.atan2(target.y - this.y, target.x - this.x);
+
+        // Count how many enemies are close to this angle (within ~10 degrees)
+        let count = 0;
+        for (let other of aliveEnemies) {
+          const angleToOther = Math.atan2(other.y - this.y, other.x - this.x);
+          const diff = Math.abs(angleToOther - angleToTarget);
+          if (diff < 0.17) { // ~10 degrees in radians
+            const dist = Math.hypot(other.x - this.x, other.y - this.y);
+            if (dist <= qRange) count++;
+          }
+        }
+
+        if (count > bestCount) {
+          bestCount = count;
+          bestAngle = angleToTarget;
+        }
+      }
+
+      if (bestCount >= 2) {
+        useQ = true;
+        qAngle = bestAngle;
+      }
+    }
+
+    return { moveX, moveY, target: closest, attack, useQ, qAngle, headshotReady };
+  }
+
+  update(others, delta, projectiles) {
+    if (this.hp <= 0) return;
+    this.attackTimer -= delta;
+    this.qTimer -= delta;
+
+    const { moveX, moveY, target, attack, useQ, qAngle, headshotReady } = this.decide(others);
+
+    // Use Q
+    if (useQ && this.qTimer <= 0) {
+      this.qAttempts++;
+      this.qTimer = Q_COOLDOWN;
+      projectiles.push(new Projectile(this.x, this.y, qAngle, 150, this.color, 'Q'));
+    }
+
+    // Attack logic
+    if (attack && target && this.attackTimer <= 0) {
+      const dist = Math.hypot(target.x - this.x, target.y - this.y);
+
+      // Determine attack range (headshot doubles range if trapped/netted)
+      let attackRange = BASE_ATTACK_RANGE;
+      if (target.trapped || target.netted) attackRange *= HEADSHOT_RANGE_MULTIPLIER;
+
+      if (dist <= attackRange) {
+        this.attackAttempts++;
+
+        if (headshotReady) {
+          // Fire Headshot - bonus damage
+          target.hp -= 2; // headshot does double damage
+          this.headshotReady = false;
+          this.basicAttackCount = 0;
+
+          // Draw special headshot visual line (red)
+          ctx.strokeStyle = 'red';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y);
+          ctx.lineTo(target.x, target.y);
+          ctx.stroke();
+          ctx.lineWidth = 1;
+        } else {
+          // Normal attack damage
+          target.hp--;
+          this.basicAttackCount++;
+          // Check if basicAttackCount hits threshold for next headshot
+          if (inBrush(this.x, this.y)) {
+            // build stacks twice as fast
+            this.basicAttackCount += 1;
+          }
+          if (this.basicAttackCount >= HEADSHOT_STACKS_NEEDED) {
+            this.headshotReady = true;
+          }
+          // Draw normal attack line (yellow)
+          ctx.strokeStyle = 'yellow';
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y);
+          ctx.lineTo(target.x, target.y);
+          ctx.stroke();
+        }
+
+        this.attackTimer = ATTACK_DELAY;
+      }
+    } else if (this.attackTimer <= 0) {
+      // Move only if not attacking
+      this.x += moveX * BASE_MOVE_SPEED * parseFloat(speedSlider.value) * delta;
+      this.y += moveY * BASE_MOVE_SPEED * parseFloat(speedSlider.value) * delta;
+      this.x = Math.max(0, Math.min(800, this.x));
+      this.y = Math.max(0, Math.min(600, this.y));
+    }
+  }
+
+  draw() {
+    // Draw Caitlyn circle with gradient to mimic LoL style
+    let gradient = ctx.createRadialGradient(this.x, this.y, CAITLYN_RADIUS / 2, this.x, this.y, CAITLYN_RADIUS);
+    gradient.addColorStop(0, this.color);
+    gradient.addColorStop(1, 'black');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, CAITLYN_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw a small white "netted" or "trapped" indicator above if trapped/netted
+    if (this.trapped || this.netted) {
+      ctx.fillStyle = '#00ffff';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('☣', this.x - 7, this.y - CAITLYN_RADIUS - 10);
+    }
+
+    // Draw HP number
+    ctx.fillStyle = 'white';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(this.hp, this.x - 5, this.y + 5);
+
+    // Draw headshot ready indicator as a red circle outline
+    if (this.headshotReady) {
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, CAITLYN_RADIUS + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+  }
+}
+
+let mutationRateSlider = document.getElementById('mutationRate');
+let attackBiasSlider = document.getElementById('attackBias');
+let speedSlider = document.getElementById('speed');
+let statsDiv = document.getElementById('stats');
+
+let generation = 1;
+let caitlyns = [];
+let projectiles = [];
+
+let noDamageTimer = 15; // 15 seconds timeout for inactivity
+
+function initCaitlyns(brain) {
+  const colors = ['#8e44ad', '#00bcd4', '#e74c3c', '#2ecc71', '#f39c12'];
+  caitlyns = [];
+  for (let i = 0; i < 5; i++) {
+    const x = Math.random() * 760 + 20;
+    const y = Math.random() * 560 + 20;
+    const color = colors[i];
+    const b = brain ? CaitlynAI.mutate(brain, parseFloat(mutationRateSlider.value)) : undefined;
+    const c = new CaitlynAI(x, y, color, b);
+
+    // Randomly trap or net some enemies for demonstration (10% chance each)
+    c.trapped = Math.random() < 0.1;
+    c.netted = Math.random() < 0.1;
+
+    caitlyns.push(c);
+  }
+}
+
+initCaitlyns();
+
+let lastTime = 0;
+
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const delta = ((timestamp - lastTime) / 1000) * parseFloat(speedSlider.value);
+  lastTime = timestamp;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw brush areas lightly to show "brush"
+  ctx.fillStyle = 'rgba(0, 100, 0, 0.2)';
+  brushAreas.forEach(area => {
+    ctx.fillRect(area.x, area.y, area.width, area.height);
+  });
+
+  caitlyns.forEach(c => { c.update(caitlyns, delta, projectiles); c.draw(); });
+  projectiles.forEach(p => { p.update(delta); p.draw(); });
+  projectiles = projectiles.filter(p => p.alive);
+
+  // Damage detection and timer reset
+  let damageDone = false;
+
+  caitlyns.forEach(c => {
+    projectiles.forEach(p => {
+      if (c.hp > 0 && p.alive && Math.hypot(c.x - p.x, c.y - p.y) < CAITLYN_RADIUS + p.radius) {
+        c.hp--;
+        p.alive = false;
+        damageDone = true;
+      }
+    });
+  });
+
+  if (damageDone) {
+    noDamageTimer = 15; // reset timer on damage
+  } else {
+    noDamageTimer -= delta; // count down if no damage
+  }
+
+  const alive = caitlyns.filter(c => c.hp > 0);
+
+  if (alive.length <= 1 || noDamageTimer <= 0) {
+    const winner = alive[0];
+    const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
+    const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
+    statsDiv.innerHTML =
+      `Generation: ${generation}<br>Avg Attacks: ${avgAttacks.toFixed(2)}<br>Avg Qs: ${avgQs.toFixed(2)}` +
+      (noDamageTimer <= 0 ? '<br><span style="color:#f39c12">Reset due to inactivity</span>' : '');
+    initCaitlyns(winner ? winner.brain : undefined);
+    projectiles = [];
+    generation++;
+    noDamageTimer = 15; // reset timer for next generation
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
