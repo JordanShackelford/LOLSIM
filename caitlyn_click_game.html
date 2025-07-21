@@ -1613,12 +1613,14 @@ function updateTeamMetricsChart() {
       label: `Team ${t + 1}`,
       data: teamMetricsHistory.map((m, i) => {
         // Calculate average fitness for this team in this generation
-        if (!m.avgFitness) {
-          // Compute and cache if not present
-          const teamCaitlyns = (window.generationCaitlyns && window.generationCaitlyns[i]) ? window.generationCaitlyns[i][t] : [];
-          m.avgFitness = teamCaitlyns.length ? teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length : 0;
+        if (!m.avgFitness || !Array.isArray(m.avgFitness)) {
+          m.avgFitness = [0, 0];
+          for (let team = 0; team < 2; ++team) {
+            const teamCaitlyns = (window.generationCaitlyns && window.generationCaitlyns[i]) ? window.generationCaitlyns[i][team] : [];
+            m.avgFitness[team] = teamCaitlyns.length ? teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length : 0;
+          }
         }
-        return m.avgFitness;
+        return m.avgFitness[t];
       }),
       borderColor: TEAM_COLORS[t],
       backgroundColor: TEAM_COLORS[t] + '33',
