@@ -2555,8 +2555,9 @@ function gameLoop(timestamp) {
     // Clamp Nexus HP to zero before checking for game end
     nexuses[0].hp = Math.max(0, nexuses[0].hp);
     nexuses[1].hp = Math.max(0, nexuses[1].hp);
-    // Restore original reset logic: Nexus destroyed
+    console.log('Nexus HP check:', nexuses[0].hp, nexuses[1].hp);
     if (nexuses[0].hp <= 0 || nexuses[1].hp <= 0) {
+      console.log('End-of-generation logic triggered: Nexus destroyed');
       // Composite Wild Rift-style score
       for (const c of caitlyns) {
         c.unspentGold = c.gold;
