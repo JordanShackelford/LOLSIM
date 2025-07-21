@@ -798,7 +798,9 @@ class CaitlynAI {
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
             // Enhanced particle effects for damage
             if (realTarget instanceof Minion) {
-              spawnDamageParticles(realTarget.x, realTarget.y, damage, true);
+              // Pick a random rainbow color for the flash
+              realTarget.flashColor = `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
+              realTarget.flashTimer = 0.18;
             } else {
               spawnDamageParticles(realTarget.x, realTarget.y, damage, false);
             }
@@ -1786,6 +1788,11 @@ class Minion {
     this.target = null;
     this.armor = stats.armor;
     this.mr = stats.mr;
+    // --- Add flash effect to minion icon ---
+    // In Minion class constructor, add:
+    this.flashColor = null;
+    this.flashTimer = 0;
+    // --- End minion flash effect ---
   }
   update(delta, minions, caitlyns, nexuses, turrets, gameMinutes) {
     if (!this.alive) return;
@@ -1898,6 +1905,10 @@ class Minion {
         this.lastHitBy.minionLastHits = (this.lastHitBy.minionLastHits || 0) + 1;
       }
     }
+    // --- Add flash effect to minion icon ---
+    // In Minion update, decrement flashTimer:
+    if (this.flashTimer > 0) this.flashTimer -= delta;
+    // --- End minion flash effect ---
   }
   draw() {
     if (!this.alive) return;
@@ -1907,6 +1918,14 @@ class Minion {
       const SPRITE_SIZE = 64;
       const minionSize = SPRITE_SIZE / 4;
       ctx.drawImage(minionImg, this.x - minionSize / 2, this.y - minionSize / 2, minionSize, minionSize);
+      if (this.flashTimer > 0 && this.flashColor) {
+        ctx.globalAlpha = Math.max(0.3, this.flashTimer / 0.18);
+        ctx.fillStyle = this.flashColor;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, minionSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     } else {
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -1917,8 +1936,15 @@ class Minion {
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#fff';
       ctx.stroke();
+      if (this.flashTimer > 0 && this.flashColor) {
+        ctx.globalAlpha = Math.max(0.3, this.flashTimer / 0.18);
+        ctx.fillStyle = this.flashColor;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     }
-    // Move HP number above icon
     ctx.font = 'bold 12px sans-serif';
     ctx.fillStyle = '#fff';
     ctx.fillText(Math.round(this.hp), this.x, this.y - this.radius - 22);
