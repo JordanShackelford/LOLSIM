@@ -830,12 +830,13 @@ class CaitlynAI {
               realTarget = minions.find(m => m.id === targetId) || target;
             }
             realTarget.hp -= damage;
+            if (realTarget.hp < 0) realTarget.hp = 0;
+            if (realTarget.hp === 0 && realTarget instanceof Minion) realTarget.alive = false;
             this.damageDealt += damage;
             if (realTarget instanceof Turret) this.turretDamage += damage;
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
             // Enhanced particle effects for damage
             if (realTarget instanceof Minion) {
-              // Pick a random rainbow color for the flash
               realTarget.flashColor = `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
               realTarget.flashTimer = 0.18;
             } else {
