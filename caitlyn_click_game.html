@@ -2729,16 +2729,18 @@ function gameLoop(timestamp) {
   bfswordImg.onload = () => { bfswordImgLoaded = true; };
 
   // BFSword item state
-  let bfsword = {
-    x: Math.random() * (CANVAS_WIDTH - 80) + 40,
-    y: Math.random() * (CANVAS_HEIGHT - 80) + 40,
-    pickedUp: false,
-    sucking: false,
-    targetCaitlyn: null,
-    t: 0 // animation progress
-  };
+  if (typeof window.bfsword === 'undefined') {
+    window.bfsword = {
+      x: Math.random() * (CANVAS_WIDTH - 80) + 40,
+      y: Math.random() * (CANVAS_HEIGHT - 80) + 40,
+      pickedUp: false,
+      sucking: false,
+      targetCaitlyn: null,
+      t: 0 // animation progress
+    };
+  }
+  let bfsword = window.bfsword;
 
-  // In gameLoop, draw and animate BFSword
   if (!bfsword.pickedUp) {
     // Check for Caitlyn nearby
     let nearest = null, minDist = 99999;
