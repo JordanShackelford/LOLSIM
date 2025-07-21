@@ -310,7 +310,9 @@ class BasicProjectile {
     }
   }
   draw() {
-    console.log('Drawing BasicProjectile at', this.x, this.y);
+    if (!window._projectileDebug) window._projectileDebug = [];
+    window._projectileDebug.push({x: this.x, y: this.y});
+    // ... existing draw code ...
     ctx.save();
     // Draw a thick, bright trail
     ctx.globalAlpha = 0.7;
@@ -2591,6 +2593,72 @@ function gameLoop(timestamp) {
   ctx.fill();
   ctx.restore();
   // --- End static debug circle ---
+
+  // --- Add debug overlay div to UI ---
+  let debugOverlay = document.getElementById('debugOverlay');
+  if (!debugOverlay) {
+    debugOverlay = document.createElement('div');
+    debugOverlay.id = 'debugOverlay';
+    debugOverlay.style.position = 'absolute';
+    debugOverlay.style.top = '10px';
+    debugOverlay.style.right = '10px';
+    debugOverlay.style.background = 'rgba(0,0,0,0.7)';
+    debugOverlay.style.color = '#0f0';
+    debugOverlay.style.font = '14px monospace';
+    debugOverlay.style.padding = '8px 12px';
+    debugOverlay.style.zIndex = 1000;
+    document.body.appendChild(debugOverlay);
+  }
+  // --- End debug overlay div ---
+
+  // --- In BasicProjectile.draw, update debug overlay with projectile positions ---
+  // (Keep this in the BasicProjectile class, not inside gameLoop)
+  class BasicProjectile {
+    // ... constructor and update ...
+    draw() {
+      if (!window._projectileDebug) window._projectileDebug = [];
+      window._projectileDebug.push({x: this.x, y: this.y});
+      // ... existing draw code ...
+      ctx.save();
+      // Draw a thick, bright trail
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = '#ff1744';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(this.x0, this.y0);
+      ctx.lineTo(this.x, this.y);
+      ctx.stroke();
+      // Draw a large, solid bullet with black outline
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.isHeadshot ? 16 : 12, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff1744';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#000';
+      ctx.stroke();
+      // Draw a debug marker
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  // --- End projectile debug overlay ---
+
+  // --- At the end of gameLoop, update the debug overlay with all projectile positions ---
+  if (window._projectileDebug && debugOverlay) {
+    if (window._projectileDebug.length > 0) {
+      debugOverlay.textContent = 'Projectiles: ' + window._projectileDebug.map(p => `(${Math.round(p.x)},${Math.round(p.y)})`).join(' ');
+    } else {
+      debugOverlay.textContent = 'Projectiles: (none)';
+    }
+    window._projectileDebug = [];
+  }
+  // --- End gameLoop debug overlay update ---
 }
 
 // Static property for item icon images
