@@ -1786,7 +1786,7 @@ class Minion {
     if (!this.alive) return;
     // Scaling
     const scale = getMinionScaling(this.type, gameMinutes);
-    this.hp = Math.min(this.hp, this.baseHp + scale.hp);
+    // this.hp = Math.min(this.hp, this.baseHp + scale.hp); // Removed clamping for proper damage
     this.ad = this.baseAd + scale.ad;
     this.gold = this.baseGold + scale.gold;
     this.armor = MINION_TYPES[this.type].armor + (scale.armor || 0);
@@ -2630,9 +2630,9 @@ function spawnParticles(x, y, color, count, speed, duration, type = 'normal') {
 // Enhanced particle spawning for different effects
 function spawnDamageParticles(x, y, damage) {
   const intensity = Math.min(damage / 100, 1);
-  const count = Math.floor(intensity * 15) + 5;
-  spawnParticles(x, y, '#ff4444', count, 200, 1.5, 'sparkle');
-  spawnParticles(x, y, '#ffaa00', count / 2, 150, 2.0, 'trail');
+  const count = Math.floor(intensity * 6) + 2; // much fewer
+  spawnParticles(x, y, '#ff4444', count, 80, 0.7, 'sparkle'); // shorter, less
+  // Removed yellow trail for subtlety
 }
 
 function spawnHealParticles(x, y) {
