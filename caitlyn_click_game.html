@@ -961,18 +961,17 @@ class CaitlynAI {
     // If useR and R is ready, find target and start channel
     if (useR && this.rCooldown <= 0 && !this.rChanneling) {
       // Find enemy Caitlyns in range (3500 units)
-      const enemiesInRange = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < 3500 * GAME_UNIT_TO_PX);
+      const enemiesInRange = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && c.constructor && c.constructor.name === 'CaitlynAI' && Math.hypot(c.x - this.x, c.y - this.y) < 3500 * GAME_UNIT_TO_PX);
       if (enemiesInRange.length > 0) {
         // Select target based on rTarget output
         const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
         const candidate = enemiesInRange[idx];
-        // Strict check: only allow enemy Caitlyns and must be instance of CaitlynAI
         if (candidate && candidate.team !== this.team && candidate !== this && candidate.constructor && candidate.constructor.name === 'CaitlynAI') {
           this.rTarget = candidate;
           this.rChanneling = true;
           this.rChannelTime = 1.0; // 1s channel
         } else {
-          if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-CaitlynAI!';
+          if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI!';
           this.rTarget = null;
           this.rChanneling = false;
         }
