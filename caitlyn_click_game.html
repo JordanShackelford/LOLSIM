@@ -2891,6 +2891,13 @@ function gameLoop(timestamp) {
     ctx.drawImage(bfswordImg, CANVAS_WIDTH / 2 - 20, CANVAS_HEIGHT / 2 - 20, 40, 40);
     ctx.restore();
   }
+
+  // --- FAIL-SAFE: Force next generation if Nexus is at 0 HP and justReset is not true ---
+  if (!justReset && (nexuses[0].hp <= 0 || nexuses[1].hp <= 0)) {
+    justReset = true;
+    setTimeout(() => requestAnimationFrame(gameLoop), 0);
+    return;
+  }
 }
 
 // Static property for item icon images
