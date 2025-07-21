@@ -2574,7 +2574,7 @@ function gameLoop(timestamp) {
         c.fitness += c.bushTime * 0.5;
         c.fitness += c.nexusDamage * 0.2;
         c.fitness -= c.unspentGold * 0.01;
-        c.fitness += c.survived ? 50 : 0;
+        // c.fitness += c.survived ? 50 : 0;
         c.fitness += c.turretDamage * 0.05;
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
@@ -2673,7 +2673,7 @@ function gameLoop(timestamp) {
         c.fitness += c.bushTime * 0.5;
         c.fitness += c.nexusDamage * 0.2;
         c.fitness -= c.unspentGold * 0.01;
-        c.fitness += c.survived ? 50 : 0;
+        // c.fitness += c.survived ? 50 : 0;
         c.fitness += c.turretDamage * 0.05;
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
