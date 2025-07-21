@@ -482,6 +482,9 @@ class CaitlynAI {
     // In CaitlynAI constructor, add speech bubble state
     this.lastThought = '';
     this.thoughtTimer = 0;
+    // --- Temporal input stacking for neural net ---
+    // Set number of frames to stack
+    this.TEMPORAL_FRAMES = 8;
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
   static HIDDEN1 = 24;
@@ -597,8 +600,34 @@ class CaitlynAI {
         inputs.push(0, 0, 0);
       }
     }
-    // Feedforward
-    let out = feedforward(inputs, this.brain);
+    // --- Temporal input stacking for neural net ---
+    // Set number of frames to stack
+    const TEMPORAL_FRAMES = 8;
+
+    // Update getRequiredBrainLength to use temporal stacking
+    function getRequiredBrainLength() {
+      const perFrameInputs = 35; // adjust if your per-frame input count changes
+      const frames = TEMPORAL_FRAMES;
+      const numInputs = perFrameInputs * frames, H1 = 128, H2 = 128, H3 = 64, O = 11;
+      return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * H3 + H3 + H3 * O + O;
+    }
+    // Update migrateBrain for compatibility
+    function migrateBrain(brain) {
+      const len = getRequiredBrainLength();
+      let out = Array.isArray(brain) ? brain.slice() : [];
+      while (out.length < len) out.push(Math.random() * 2 - 1);
+      while (out.length > len) out.pop();
+      return out;
+    }
+    // In CaitlynAI and Zed input logic (decide/update):
+    if (!this.inputHistory) this.inputHistory = [];
+    let frameInputs = [/* ... per-frame features ... */]; // build as before
+    this.inputHistory.push(frameInputs);
+    if (this.inputHistory.length > TEMPORAL_FRAMES) this.inputHistory.shift();
+    let stackedInputs = this.inputHistory.flat();
+    while (stackedInputs.length < 35 * TEMPORAL_FRAMES) stackedInputs.push(0);
+    // Feed stackedInputs to neural net
+    let out = feedforward(stackedInputs, this.brain);
     if (out.some(x => isNaN(x))) {
       console.error('Neural net output NaN:', out, inputs, this.brain);
     }
@@ -1418,18 +1447,17 @@ let savedBrain = null;
 
 // --- Flexible brain migration system ---
 function getRequiredBrainLength() {
-  // AlphaStar-style: much deeper and wider
-  const numInputs = 64, H1 = 128, H2 = 128, H3 = 64, O = 11;
+  const perFrameInputs = 35; // adjust if your per-frame input count changes
+  const frames = this.TEMPORAL_FRAMES;
+  const numInputs = perFrameInputs * frames, H1 = 128, H2 = 128, H3 = 64, O = 11;
   return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * H3 + H3 + H3 * O + O;
 }
 function migrateBrain(brain) {
-  const required = getRequiredBrainLength();
-  let migrated = brain.slice();
-  let changed = false;
-  while (migrated.length < required) { migrated.push(Math.random() * 2 - 1); changed = true; }
-  while (migrated.length > required) { migrated.pop(); changed = true; }
-  if (changed && typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'Brain migrated: ' + brain.length + ' → ' + required;
-  return migrated;
+  const len = getRequiredBrainLength();
+  let out = Array.isArray(brain) ? brain.slice() : [];
+  while (out.length < len) out.push(Math.random() * 2 - 1);
+  while (out.length > len) out.pop();
+  return out;
 }
 // On loadBrain, always migrate
 function loadBrain() {
