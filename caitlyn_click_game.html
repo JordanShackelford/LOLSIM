@@ -131,7 +131,7 @@ const CAITLYN_BASE_AS = 0.681;
 const CAITLYN_AS_RATIO = 0.625;
 const CAITLYN_ARMOR = 0;
 const CAITLYN_MR = 0;
-const CAITLYN_ATTACK_RANGE_UNITS = 650; // full original range
+const CAITLYN_ATTACK_RANGE_UNITS = 650 * 2; // double original range
 const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
 
 // Headshot constants
@@ -1654,26 +1654,29 @@ BasicProjectile.prototype.draw = function() {
   window._projectileDebug.push({x: this.x, y: this.y});
   ctx.save();
   // Draw a thick, bright trail
-  ctx.globalAlpha = 0.7;
-  ctx.strokeStyle = '#ff1744';
-  ctx.lineWidth = 8;
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = '#fff200';
+  ctx.lineWidth = 16;
   ctx.beginPath();
   ctx.moveTo(this.x0, this.y0);
   ctx.lineTo(this.x, this.y);
   ctx.stroke();
-  // Draw a large, solid bullet with black outline
+  // Draw a huge, solid bullet with black outline
   ctx.globalAlpha = 1;
   ctx.beginPath();
-  ctx.arc(this.x, this.y, this.isHeadshot ? 16 : 12, 0, Math.PI * 2);
-  ctx.fillStyle = '#ff1744';
+  ctx.arc(this.x, this.y, this.isHeadshot ? 28 : 20, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff200';
+  ctx.shadowColor = '#ff1744';
+  ctx.shadowBlur = 24;
   ctx.fill();
-  ctx.lineWidth = 4;
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 6;
   ctx.strokeStyle = '#000';
   ctx.stroke();
   // Draw a debug marker
   ctx.globalAlpha = 0.5;
   ctx.beginPath();
-  ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+  ctx.arc(this.x, this.y, 32, 0, Math.PI * 2);
   ctx.strokeStyle = '#00ff00';
   ctx.lineWidth = 2;
   ctx.stroke();
