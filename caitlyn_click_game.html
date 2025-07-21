@@ -845,6 +845,17 @@ class CaitlynAI {
             } else {
               spawnDamageParticles(realTarget.x, realTarget.y, damage, false);
             }
+            // --- Kiting bonus: reward for dealing damage from a distance ---
+            if (realTarget && realTarget !== this && typeof realTarget.x === 'number' && typeof realTarget.y === 'number') {
+              const dist = Math.hypot(this.x - realTarget.x, this.y - realTarget.y);
+              // Only reward if target is not a turret or nexus
+              if (!(realTarget instanceof Turret) && realTarget !== nexuses[0] && realTarget !== nexuses[1]) {
+                // Bonus: up to +0.2 fitness per 100 units, capped at attack range
+                const maxRange = this.attackRange;
+                const bonus = Math.min(dist, maxRange) / maxRange * 0.2 * damage;
+                this.fitness += bonus;
+              }
+            }
           }, isHeadshot, target));
         }
         this.pendingAttack = null;
