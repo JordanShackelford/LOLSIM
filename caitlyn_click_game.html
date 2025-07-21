@@ -2719,6 +2719,88 @@ function gameLoop(timestamp) {
     window._projectileDebug = [];
   }
   // --- End gameLoop debug overlay update ---
+
+  // --- BFSword item system ---
+  const BFSWORD_AD = 40;
+  const BFSWORD_ICON = 'bfsword.png';
+  let bfswordImg = new Image();
+  bfswordImg.src = BFSWORD_ICON;
+  let bfswordImgLoaded = false;
+  bfswordImg.onload = () => { bfswordImgLoaded = true; };
+
+  // BFSword item state
+  let bfsword = {
+    x: Math.random() * (CANVAS_WIDTH - 80) + 40,
+    y: Math.random() * (CANVAS_HEIGHT - 80) + 40,
+    pickedUp: false,
+    sucking: false,
+    targetCaitlyn: null,
+    t: 0 // animation progress
+  };
+
+  // In gameLoop, draw and animate BFSword
+  if (!bfsword.pickedUp) {
+    // Check for Caitlyn nearby
+    let nearest = null, minDist = 99999;
+    for (const c of caitlyns) {
+      if (c.hasBFSword) continue;
+      const dist = Math.hypot(c.x - bfsword.x, c.y - bfsword.y);
+      if (dist < 60 && dist < minDist) {
+        nearest = c;
+        minDist = dist;
+      }
+    }
+    if (nearest) {
+      bfsword.sucking = true;
+      bfsword.targetCaitlyn = nearest;
+    }
+    if (bfsword.sucking && bfsword.targetCaitlyn) {
+      // Animate toward Caitlyn
+      bfsword.t += 0.08;
+      bfsword.x += (bfsword.targetCaitlyn.x - bfsword.x) * 0.18;
+      bfsword.y += (bfsword.targetCaitlyn.y - bfsword.y) * 0.18;
+      // Draw icon at current position
+      if (bfswordImgLoaded) {
+        ctx.save();
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(performance.now() / 100);
+        ctx.drawImage(bfswordImg, bfsword.x - 20, bfsword.y - 20, 40, 40);
+        ctx.restore();
+      }
+      // If close enough, pick up
+      if (Math.hypot(bfsword.targetCaitlyn.x - bfsword.x, bfsword.targetCaitlyn.y - bfsword.y) < 18) {
+        bfsword.pickedUp = true;
+        bfsword.targetCaitlyn.hasBFSword = true;
+        bfsword.targetCaitlyn.bfswordAD = BFSWORD_AD;
+        bfsword.targetCaitlyn.bfswordIcon = true;
+      }
+    } else {
+      // Draw icon at static position
+      if (bfswordImgLoaded) {
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(bfswordImg, bfsword.x - 20, bfsword.y - 20, 40, 40);
+        ctx.restore();
+      }
+      bfsword.t = 0;
+    }
+  }
+  // Draw BFSword icon above Caitlyn's head if she has it
+  for (const c of caitlyns) {
+    if (c.hasBFSword && bfswordImgLoaded) {
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(bfswordImg, c.x - 18, c.y - CAITLYN_RADIUS - 54, 36, 36);
+      ctx.restore();
+    }
+  }
+  // Add BFSword AD to Caitlyn's getBonusAD
+  const origGetBonusAD = CaitlynAI.prototype.getBonusAD || function() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); };
+  CaitlynAI.prototype.getBonusAD = function() {
+    let ad = origGetBonusAD.call(this);
+    if (this.hasBFSword) ad += BFSWORD_AD;
+    return ad;
+  };
+  // --- End BFSword item system ---
 }
 
 // Static property for item icon images
