@@ -952,7 +952,7 @@ class CaitlynAI {
       if (this.rChannelTime <= 0 && this.rTarget && this.rTarget.hp > 0) {
         // Fire ult projectile
         projectiles.push(new UltProjectile(this, this.x, this.y, this.rTarget));
-        this.rCooldown = 30; // 30s cooldown
+        this.rCooldown = 60; // 60s cooldown
         this.rChanneling = false;
         this.rTarget = null;
       }
