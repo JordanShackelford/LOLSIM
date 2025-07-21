@@ -2579,6 +2579,18 @@ function gameLoop(timestamp) {
         }
       });
     });
+    // --- Add minion projectile collision and damage ---
+    minions.forEach(m => {
+      projectiles.forEach(p => {
+        if (m.hp > 0 && m.alive && p.alive && Math.hypot(m.x - p.x, m.y - p.y) < m.radius + p.radius) {
+          m.hp--;
+          p.alive = false;
+          damageDone = true;
+          m.flashColor = '#fff';
+          m.flashTimer = 0.18;
+        }
+      });
+    });
 
     // Clamp Nexus HP to zero before checking for game end
     nexuses[0].hp = Math.max(0, nexuses[0].hp);
@@ -2644,7 +2656,11 @@ function gameLoop(timestamp) {
         const avgFitness = teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length;
         teamAvgRank[t] = fitnessToRank(avgFitness);
       }
-      // Add to teamMetricsHistory
+      if (!window.generationCaitlyns) window.generationCaitlyns = [];
+      window.generationCaitlyns.push([
+        caitlyns.filter(c => c.team === 0).map(c => ({...c})),
+        caitlyns.filter(c => c.team === 1).map(c => ({...c}))
+      ]);
       teamMetricsHistory.push({
         generation,
         wins: teamWins.slice(),
