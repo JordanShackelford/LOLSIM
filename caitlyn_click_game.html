@@ -197,10 +197,15 @@ class Trap {
       ctx.globalAlpha = this.armed ? 0.8 : 0.4;
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 2;
-      ctx.stroke();
     }
+    // Draw thin team color outline
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 14, 0, Math.PI * 2);
+    ctx.strokeStyle = TEAM_COLORS[this.owner.team];
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 }
@@ -1586,11 +1591,8 @@ class QProjectile {
     let hitCount = this.hitTargets.size;
     for (const c of caitlyns) {
       if (c.hp <= 0 || c.team === this.owner.team || this.hitTargets.has(c)) continue;
-      // Trapped targets always take full damage
       let w = (hitCount === 0) ? Q_WIDTH : Q_WIDTH_EXPANDED;
-      // Expand after first hit
       if (hitCount > 0) this.width = Q_WIDTH_EXPANDED;
-      // Check collision (circular hitbox vs. Q rectangle)
       if (pointInRotatedRect(c.x, c.y, this.x, this.y, w, 1, this.angle)) {
         let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
         if (hitCount > 0 && !c.trapped) dmg *= Q_DAMAGE_FALLOFF;
@@ -1598,10 +1600,24 @@ class QProjectile {
         this.owner.damageDealt += Math.round(dmg);
         this.hitTargets.add(c);
         hitCount++;
-        // Enhanced visual effects for Q hits
         spawnAbilityParticles(c.x, c.y, '#00bcd4');
         spawnParticles(c.x, c.y, '#00eaff', 8, 150, 1.5, 'energy');
-        // Expand width after first hit
+        if (hitCount === 1) this.width = Q_WIDTH_EXPANDED;
+      }
+    }
+    // Minion hit detection for Q
+    for (const m of minions) {
+      if (m.hp <= 0 || m.team === this.owner.team || this.hitTargets.has(m)) continue;
+      let w = (hitCount === 0) ? Q_WIDTH : Q_WIDTH_EXPANDED;
+      if (pointInRotatedRect(m.x, m.y, this.x, this.y, w, 1, this.angle)) {
+        let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
+        if (hitCount > 0) dmg *= Q_DAMAGE_FALLOFF;
+        m.hp -= Math.round(dmg);
+        this.owner.damageDealt += Math.round(dmg);
+        this.hitTargets.add(m);
+        hitCount++;
+        m.flashColor = `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
+        m.flashTimer = 0.18;
         if (hitCount === 1) this.width = Q_WIDTH_EXPANDED;
       }
     }
