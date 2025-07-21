@@ -2925,9 +2925,99 @@ function gameLoop(timestamp) {
   // --- FAIL-SAFE: Force next generation if Nexus is at 0 HP and justReset is not true ---
   if (!justReset && (nexuses[0].hp <= 0 || nexuses[1].hp <= 0)) {
     justReset = true;
-    setTimeout(() => requestAnimationFrame(gameLoop), 0);
+    // Find the winner (team whose nexus is alive, or null if both dead)
+    let winner = null;
+    if (nexuses[0].hp > 0 && nexuses[1].hp <= 0) winner = caitlyns.find(c => c.team === 0);
+    else if (nexuses[1].hp > 0 && nexuses[0].hp <= 0) winner = caitlyns.find(c => c.team === 1);
+    else if (caitlyns.length > 0) winner = caitlyns[0]; // fallback
+    // End generation: pass on genes of highest-grade Caitlyn
+    for (const c of caitlyns) {
+      c.unspentGold = c.gold;
+      c.survived = (c.hp > 0 && !c.dead);
+      c.fitness = 0;
+      c.fitness += c.kills * 50;
+      c.fitness += c.assists * 30;
+      c.fitness -= c.deaths * 80;
+      c.fitness += c.minionLastHits * 1;
+      c.fitness += c.turretsDestroyed * 100;
+      c.fitness += c.damageDealt * 0.1;
+      c.fitness += c.goldSpent * 0.02;
+      c.fitness -= Math.floor(c.idleTime / 5) * 10;
+      c.fitness += c.bushTime * 0.5;
+      c.fitness += c.nexusDamage * 0.2;
+      c.fitness -= c.unspentGold * 0.01;
+      c.fitness += c.survived ? 50 : 0;
+      c.fitness += c.turretDamage * 0.05;
+    }
+    let best = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
+    const genDuration = (performance.now() - generationStartTime) / 1000;
+    const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
+    const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
+    statsDiv.innerHTML =
+      `Generation: ${generation}<br>` +
+      `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+      `Avg Qs: ${avgQs.toFixed(2)}` +
+      '<br><span style="color:#f39c12">Reset: Nexus destroyed</span>';
+    // Team metrics
+    let teamWins = [0, 0];
+    let teamAvgDPM = [0, 0];
+    let teamTotalDPM = [0, 0];
+    let teamGold = [0, 0];
+    if (best) teamWins[best.team] = 1;
+    for (let t = 0; t < NUM_TEAMS; ++t) {
+      const teamCaitlyns = caitlyns.filter(c => c.team === t);
+      const dpmList = teamCaitlyns.map(c => genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0);
+      teamAvgDPM[t] = dpmList.reduce((s, d) => s + d, 0) / dpmList.length;
+      teamTotalDPM[t] = teamCaitlyns.reduce((s, c) => s + (genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0), 0);
+      teamGold[t] = teamCaitlyns.reduce((s, c) => s + c.gold, 0);
+    }
+    function fitnessToRank(fitness) {
+      if (fitness > 900) return 'S';
+      if (fitness > 700) return 'A';
+      if (fitness > 500) return 'B';
+      if (fitness > 300) return 'C';
+      return 'D';
+    }
+    let teamAvgRank = [0, 0];
+    for (let t = 0; t < NUM_TEAMS; ++t) {
+      const teamCaitlyns = caitlyns.filter(c => c.team === t);
+      const avgFitness = teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length;
+      teamAvgRank[t] = fitnessToRank(avgFitness);
+    }
+    teamMetricsHistory.push({
+      generation,
+      wins: teamWins.slice(),
+      avgDPM: teamAvgDPM.slice(),
+      totalDPM: teamTotalDPM.slice(),
+      gold: teamGold.slice(),
+      avgRank: teamAvgRank.slice()
+    });
+    updateTeamMetricsChart();
+    if (best) {
+      saveBrain(best.brain);
+    }
+    nexuses = [
+      new Nexus(NEXUS_POS[0].x, NEXUS_POS[0].y, 0),
+      new Nexus(NEXUS_POS[1].x, NEXUS_POS[1].y, 1)
+    ];
+    turrets = [];
+    for (let team = 0; team < 2; ++team) {
+      for (const pos of TURRET_POSITIONS[team]) {
+        turrets.push(new Turret(pos.x, pos.y, team));
+      }
+    }
+    minions = [];
+    minionSpawnTimers = [0, 0];
+    minionWaveNumbers = [0, 0];
+    initCaitlyns(best ? best.brain : undefined);
+    projectiles = [];
+    generation++;
+    lastTime = 0;
+    generationStartTime = null;
+    setTimeout(() => { justReset = false; requestAnimationFrame(gameLoop); }, 0);
     return;
   }
+  // ... existing code ...
 }
 
 // Static property for item icon images
