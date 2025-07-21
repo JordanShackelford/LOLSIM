@@ -3911,7 +3911,7 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
       if (this.eCooldown <= 0 && this.energy >= 50) {
         let eLevel = 5;
         let bonusAD = 0;
-        for (const c of caitlyns) c._zedEHitThisCast = false; c._zedERefunded = false;
+        for (const c of caitlyns) { c._zedEHitThisCast = false; c._zedERefunded = false; }
         this._zedEChampHit.clear();
         let eSlash = new ZedESlash(this, this.x, this.y, eLevel, bonusAD, false);
         eSlash.alive = true;
