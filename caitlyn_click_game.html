@@ -610,15 +610,7 @@ class CaitlynAI {
     let targetType = Math.max(0, Math.min(2, Math.floor((out[4] + 1) * 1.5)));
     let targetIdx = 0;
     let target = null;
-    if (typeof generation !== 'undefined' && generation <= 300) {
-      // FORCE: Only target minions for first 300 generations
-      let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
-      if (enemyMinions.length > 0) {
-        // Closest minion
-        enemyMinions.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
-        target = enemyMinions[0];
-      }
-    } else if (targetType === 0) {
+    if (targetType === 0) {
       // Minion
       let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
       if (enemyMinions.length > 0) {
@@ -653,19 +645,14 @@ class CaitlynAI {
     this.qAngle = qAngle; // Store Q angle for aiming
     
     // Debug logging for first few frames to understand Q casting behavior
-    if (typeof generation === 'undefined' || generation < 5) {
-      console.log(`Caitlyn (team ${this.team}) neural outputs:`, {
-        moveX: moveX.toFixed(3),
-        moveY: moveY.toFixed(3), 
-        attack: attack.toFixed(3),
-        useQ: useQ.toFixed(3),
-        useQ_threshold: (useQ > 0.5),
-        buy: buy.toFixed(3),
-        recall: recall.toFixed(3),
-        trap: trap.toFixed(3),
-        useE: useE.toFixed(3),
-        qAngle: qAngle.toFixed(3)
-      });
+    if (typeof generation !== 'undefined' && generation <= 300) {
+      // FORCE: Only target minions for first 300 generations
+      let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+      if (enemyMinions.length > 0) {
+        // Closest minion
+        enemyMinions.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = enemyMinions[0];
+      }
     }
     
     return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, qAngle: qAngle };
