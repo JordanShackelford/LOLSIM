@@ -963,9 +963,17 @@ class CaitlynAI {
       if (enemiesInRange.length > 0) {
         // Select target based on rTarget output
         const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
-        this.rTarget = enemiesInRange[idx];
-        this.rChanneling = true;
-        this.rChannelTime = 1.0; // 1s channel
+        const candidate = enemiesInRange[idx];
+        // Strict check: only allow enemy Caitlyns
+        if (candidate && candidate.team !== this.team && candidate !== this) {
+          this.rTarget = candidate;
+          this.rChanneling = true;
+          this.rChannelTime = 1.0; // 1s channel
+        } else {
+          if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-enemy!';
+          this.rTarget = null;
+          this.rChanneling = false;
+        }
       }
     }
   }
