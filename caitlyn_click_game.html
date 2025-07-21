@@ -943,7 +943,7 @@ class CaitlynAI {
     if (this.rChanneling) {
       this.rChannelTime -= delta;
       if (this.rChannelTime <= 0 && this.rTarget && this.rTarget.hp > 0) {
-        // Fire ult projectile
+        // Fire ult projectile (after channel)
         projectiles.push(new UltProjectile(this, this.x, this.y, this.rTarget));
         this.rCooldown = 60; // 60s cooldown
         this.rChanneling = false;
@@ -1264,6 +1264,13 @@ class CaitlynAI {
       ctx.shadowBlur = 6;
       ctx.fillText('ULT!', this.x, this.y - CAITLYN_RADIUS - 60);
       ctx.restore();
+      // Draw BFSword icon above head if she has it
+      if (this.hasBFSword && typeof bfswordImgLoaded !== 'undefined' && bfswordImgLoaded) {
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(bfswordImg, this.x - 18, this.y - CAITLYN_RADIUS - 90, 36, 36);
+        ctx.restore();
+      }
     }
     // In CaitlynAI.draw, only show R range indicator if R is off cooldown and not channeling
     if (this.rCooldown <= 0 && !this.rChanneling) {
@@ -3184,7 +3191,7 @@ class UltProjectile {
     this.x = x;
     this.y = y;
     this.target = target;
-    this.speed = 4000 * GAME_UNIT_TO_PX;
+    this.speed = 900 * GAME_UNIT_TO_PX;
     this.alive = true;
     this.hit = false;
     // Calculate direction
