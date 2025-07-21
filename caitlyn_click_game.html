@@ -70,11 +70,11 @@ const TURRET_RANGE = 180 * GAME_UNIT_TO_PX; // 180 units
 // Minion stats (in game units)
 const MINION_TYPES = {
   melee: {
-    baseHp: 200,  // Further reduced
-    baseAd: 8,    // Reduced from 16
-    attackSpeed: 0.8,  // Reduced from 1.25
+    baseHp: 200,
+    baseAd: 16, // doubled from 8
+    attackSpeed: 0.8,
     moveSpeed: 325 * GAME_UNIT_TO_PX,
-    range: 120 * GAME_UNIT_TO_PX,
+    range: 240 * GAME_UNIT_TO_PX, // doubled from 120
     gold: 65,
     armor: 0,
     mr: 0,
@@ -83,11 +83,11 @@ const MINION_TYPES = {
     color: '#bca',
   },
   caster: {
-    baseHp: 140,  // Further reduced
-    baseAd: 6,    // Reduced from 12
-    attackSpeed: 0.7,  // Reduced from 1.0
+    baseHp: 140,
+    baseAd: 12, // doubled from 6
+    attackSpeed: 0.7,
     moveSpeed: 325 * GAME_UNIT_TO_PX,
-    range: 500 * GAME_UNIT_TO_PX,
+    range: 1000 * GAME_UNIT_TO_PX, // doubled from 500
     gold: 45,
     armor: 0,
     mr: 0,
@@ -96,11 +96,11 @@ const MINION_TYPES = {
     color: '#8cf',
   },
   cannon: {
-    baseHp: 350,  // Further reduced
-    baseAd: 15,   // Reduced from 28
-    attackSpeed: 0.6,  // Reduced from 0.83
+    baseHp: 350,
+    baseAd: 30, // doubled from 15
+    attackSpeed: 0.6,
     moveSpeed: 285 * GAME_UNIT_TO_PX,
-    range: 300 * GAME_UNIT_TO_PX,
+    range: 600 * GAME_UNIT_TO_PX, // doubled from 300
     gold: 85,
     armor: 15,
     mr: 15,
@@ -110,11 +110,11 @@ const MINION_TYPES = {
     turretDmgReduction: 0.7,
   },
   super: {
-    baseHp: 700,  // Further reduced
-    baseAd: 40,   // Reduced from 80
-    attackSpeed: 0.8,  // Reduced from 1.0
+    baseHp: 700,
+    baseAd: 80, // doubled from 40
+    attackSpeed: 0.8,
     moveSpeed: 325 * GAME_UNIT_TO_PX,
-    range: 200 * GAME_UNIT_TO_PX,
+    range: 400 * GAME_UNIT_TO_PX, // doubled from 200
     gold: 150,
     armor: 40,
     mr: 40,
@@ -2261,6 +2261,9 @@ function gameLoop(timestamp) {
     projectiles = projectiles.filter(p => p.alive);
 
     basicProjectiles.forEach(p => p.update(delta));
+    // Draw minions, turrets, nexuses, caitlyns
+    // (already present above)
+    // Now draw basic projectiles above all units
     basicProjectiles.forEach(p => p.draw());
     basicProjectiles = basicProjectiles.filter(p => p.alive);
     
