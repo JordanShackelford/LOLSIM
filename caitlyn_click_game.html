@@ -3527,6 +3527,8 @@ class ZedQProjectile {
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#0ff';
     ctx.stroke();
+    // Add trailing particles
+    spawnParticles(this.x, this.y, '#00eaff', 2, 60, 0.25, 'trail');
     ctx.restore();
   }
 }
@@ -3610,10 +3612,16 @@ class ZedShadow {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#00eaff';
     ctx.stroke();
+    // Pulsing ring
+    ctx.globalAlpha = 0.3 + 0.2 * Math.sin(performance.now() / 200);
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 32 + 6 * Math.sin(performance.now() / 120), 0, Math.PI * 2);
+    ctx.strokeStyle = '#00eaff';
+    ctx.lineWidth = 4;
+    ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.font = 'bold 16px monospace';
-    ctx.fillStyle = '#00eaff';
-    ctx.fillText('W', this.x, this.y + 6);
+    // Particles
+    spawnParticles(this.x, this.y, '#00eaff', 1, 40, 0.18, 'sparkle');
     ctx.restore();
   }
 }
@@ -3643,10 +3651,8 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
     }
     // --- W input logic ---
     // For demo: use E key for W cast, R key for swap (replace with real input as needed)
-    if (window.zedWCast) {
-      // First cast: throw shadow
+    if (this.useWIntent > 0.5) {
       if (!this.zedShadow && this.wCooldown <= 0) {
-        // Throw shadow in facing direction (qAngle)
         let angle = this.qAngle * Math.PI;
         let dist = 700 * GAME_UNIT_TO_PX;
         let sx = this.x + Math.cos(angle) * dist;
@@ -3655,15 +3661,12 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
         this.wActive = true;
         this.wSwapAvailable = true;
         this.wTimer = 5.0;
-        this.wCooldown = 20; // Start cooldown on cast
+        this.wCooldown = 20;
       } else if (this.zedShadow && this.wSwapAvailable) {
-        // Second cast: swap
-        // Only allow swap if within 1300 units
         let dx = this.zedShadow.x - this.x;
         let dy = this.zedShadow.y - this.y;
         let dist = Math.hypot(dx, dy);
         if (dist <= 1300 * GAME_UNIT_TO_PX) {
-          // Swap positions
           let tmpX = this.x, tmpY = this.y;
           this.x = this.zedShadow.x;
           this.y = this.zedShadow.y;
@@ -3673,10 +3676,8 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
           this.zedShadow = null;
           this.wActive = false;
           this.wSwapAvailable = false;
-          // Cooldown continues
         }
       }
-      window.zedWCast = false;
     }
     // Shadow timer
     if (this.zedShadow && this.zedShadow.active) {
@@ -3898,28 +3899,20 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
       if (this._zedESlowTimer <= 0) this._zedESlow = 0;
     }
     // --- E input logic ---
-    if (window.zedECast) {
+    if (this.useEIntent > 0.5) {
       if (this.eCooldown <= 0 && this.energy >= 50) {
-        // Cast E from Zed and shadow(s)
-        let eLevel = 5; // For now, max level
+        let eLevel = 5;
         let bonusAD = 0;
-        // Mark all Caitlyns as not hit this cast
-        for (const c of caitlyns) {
-          c._zedEHitThisCast = false;
-          c._zedERefunded = false;
-        }
+        for (const c of caitlyns) c._zedEHitThisCast = false; c._zedERefunded = false;
         this._zedEChampHit.clear();
-        // Zed's own slash
         let eSlash = new ZedESlash(this, this.x, this.y, eLevel, bonusAD, false);
         eSlash.alive = true;
         projectiles.push(eSlash);
-        // Shadow(s) slash
         if (this.zedShadow && this.zedShadow.active) {
           let shadowSlash = new ZedESlash(this, this.zedShadow.x, this.zedShadow.y, eLevel, bonusAD, true);
           shadowSlash.alive = true;
           projectiles.push(shadowSlash);
         }
-        // Cooldown refund: for each champ hit by shadow, -2s
         if (this._zedEChampHit.size > 0) {
           this.eCooldown = Math.max(0, 5 - 2 * this._zedEChampHit.size);
         } else {
@@ -3927,7 +3920,6 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
         }
         this.energy -= 50;
       }
-      window.zedECast = false;
     }
     // Update all E slashes (visuals, slow)
     for (const p of projectiles) {
@@ -3971,10 +3963,16 @@ class ZedRShadow {
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#ff1744';
     ctx.stroke();
+    // Red pulse
+    ctx.globalAlpha = 0.4 + 0.3 * Math.sin(performance.now() / 120);
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 34 + 8 * Math.sin(performance.now() / 80), 0, Math.PI * 2);
+    ctx.strokeStyle = '#ff1744';
+    ctx.lineWidth = 6;
+    ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.font = 'bold 16px monospace';
-    ctx.fillStyle = '#ff1744';
-    ctx.fillText('R', this.x, this.y + 6);
+    // Particles
+    spawnParticles(this.x, this.y, '#ff1744', 2, 60, 0.18, 'sparkle');
     ctx.restore();
   }
 }
@@ -4000,30 +3998,24 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
     // Update R shadow
     if (this.rShadow && this.rShadow.active) this.rShadow.update();
     // --- R input logic ---
-    if (window.zedRCast) {
+    if (this.useRIntent > 0.5) {
       if (!this.rMarkActive && this.rCooldown <= 0) {
-        // Find nearest enemy Caitlyn
         let candidates = caitlyns.filter(c => c !== this && c.hp > 0 && c.team !== this.team);
         if (candidates.length > 0) {
           let target = candidates.reduce((best, c) => Math.hypot(c.x - this.x, c.y - this.y) < Math.hypot(best.x - this.x, best.y - this.y) ? c : best, candidates[0]);
-          // Dash to target (625 units max)
           let dx = target.x - this.x;
           let dy = target.y - this.y;
           let dist = Math.hypot(dx, dy);
           let dashDist = Math.min(dist, 625 * GAME_UNIT_TO_PX);
           let dashAngle = Math.atan2(dy, dx);
-          // Create R shadow at original position
           this.rShadow = new ZedRShadow(this, this.x, this.y);
-          // Become untargetable for 0.75s
           this.rUntargetable = true;
           this.rUntargetableTimer = 0.75;
-          // Move Zed to behind target after dash
           this.rMarkTarget = target;
           this.rMarkActive = true;
           this.rMarkTimer = 3.0;
           this.rMarkBaseDmg = [100, 200, 300][this.rLevel - 1] || 100;
           this.rMarkDamage = 0;
-          // Move to behind target
           setTimeout(() => {
             this.x = target.x - Math.cos(dashAngle) * 40;
             this.y = target.y - Math.sin(dashAngle) * 40;
@@ -4032,14 +4024,12 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
           this.rCooldown = [120, 100, 80][this.rLevel - 1] || 120;
         }
       } else if (this.rShadow && this.rShadow.active) {
-        // Swap to R shadow
         let tmpX = this.x, tmpY = this.y;
         this.x = this.rShadow.x;
         this.y = this.rShadow.y;
         this.rShadow.active = false;
         this.rShadow = null;
       }
-      window.zedRCast = false;
     }
     // Untargetable timer
     if (this.rUntargetable) {
