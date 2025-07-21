@@ -3002,6 +3002,20 @@ class UltProjectile {
 }
 // --- End UltProjectile ---
 
+// --- Add test bullet button to UI ---
+const testBulletBtn = document.createElement('button');
+testBulletBtn.textContent = 'Spawn Test Bullet';
+testBulletBtn.style.marginTop = '10px';
+testBulletBtn.onclick = () => {
+  basicProjectiles.push(new BasicProjectile(
+    CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2,
+    CANVAS_WIDTH / 2 + 200, CANVAS_HEIGHT / 2,
+    '#ff1744', null, false, null
+  ));
+};
+uiDiv.appendChild(testBulletBtn);
+// --- End test bullet button ---
+
 </script>
 </body>
 </html>
