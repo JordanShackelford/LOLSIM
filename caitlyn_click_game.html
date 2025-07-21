@@ -671,13 +671,15 @@ class CaitlynAI {
         this.y = NEXUS_POS[this.team].y;
         this.hp = CAITLYN_BASE_HP + this.getBonusHP();
         this.dead = false;
-        
         // Copy the best Caitlyn's brain with small mutation
         const bestCaitlyn = findBestCaitlyn();
         if (bestCaitlyn && bestCaitlyn !== this) {
           // Copy best brain with small mutation for diversity
           this.brain = CaitlynAI.mutate(bestCaitlyn.brain, 0.05); // 5% mutation rate
           console.log(`Caitlyn (team ${this.team}) copied brain from best performer (fitness: ${bestCaitlyn.fitness.toFixed(1)})`);
+          saveBrain(bestCaitlyn.brain); // Save best brain to localStorage on respawn
+        } else {
+          saveBrain(this.brain); // Save own brain if best
         }
       }
       return;
