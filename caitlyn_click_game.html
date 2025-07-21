@@ -1272,8 +1272,8 @@ class CaitlynAI {
       ctx.fillText('ULT!', this.x, this.y - CAITLYN_RADIUS - 60);
       ctx.restore();
     }
-    // In CaitlynAI.draw, draw R range indicator if R is off cooldown
-    if (this.rCooldown <= 0) {
+    // In CaitlynAI.draw, only show R range indicator if R is off cooldown and not channeling
+    if (this.rCooldown <= 0 && !this.rChanneling) {
       ctx.save();
       ctx.globalAlpha = 0.18;
       ctx.beginPath();
