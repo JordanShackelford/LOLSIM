@@ -606,7 +606,7 @@ class CaitlynAI {
 
     // Update getRequiredBrainLength to use temporal stacking
     function getRequiredBrainLength() {
-      const perFrameInputs = 35; // adjust if your per-frame input count changes
+      const perFrameInputs = 37; // was 35
       const frames = TEMPORAL_FRAMES;
       const numInputs = perFrameInputs * frames, H1 = 128, H2 = 128, H3 = 64, O = 11;
       return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * H3 + H3 + H3 * O + O;
@@ -625,7 +625,7 @@ class CaitlynAI {
     this.inputHistory.push(frameInputs);
     if (this.inputHistory.length > TEMPORAL_FRAMES) this.inputHistory.shift();
     let stackedInputs = this.inputHistory.flat();
-    while (stackedInputs.length < 35 * TEMPORAL_FRAMES) stackedInputs.push(0);
+    while (stackedInputs.length < 37 * TEMPORAL_FRAMES) stackedInputs.push(0);
     // Feed stackedInputs to neural net
     let out = feedforward(stackedInputs, this.brain);
     if (out.some(x => isNaN(x))) {
@@ -1015,7 +1015,7 @@ class CaitlynAI {
           this.rChanneling = true;
           this.rChannelTime = 3.0; // 3s channel (was 1.0)
         } else {
-          if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
+          if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
           this.rTarget = null;
           this.rChanneling = false;
         }
@@ -1447,8 +1447,8 @@ let savedBrain = null;
 
 // --- Flexible brain migration system ---
 function getRequiredBrainLength() {
-  const perFrameInputs = 35; // adjust if your per-frame input count changes
-  const frames = this.TEMPORAL_FRAMES;
+  const perFrameInputs = 37; // was 35
+  const frames = TEMPORAL_FRAMES;
   const numInputs = perFrameInputs * frames, H1 = 128, H2 = 128, H3 = 64, O = 11;
   return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * H3 + H3 + H3 * O + O;
 }
@@ -2557,7 +2557,7 @@ function gameLoop(timestamp) {
     basicProjectiles.forEach(p => p.update(delta));
     basicProjectiles.forEach(p => p.draw());
     basicProjectiles = basicProjectiles.filter(p => p.alive);
-    if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'BasicProjectiles: ' + basicProjectiles.length;
+    if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'BasicProjectiles: ' + basicProjectiles.length;
     // Draw minions, turrets, nexuses, caitlyns
     // (already present above)
     // Now draw basic projectiles above all units
@@ -3343,7 +3343,7 @@ class UltProjectile {
   constructor(owner, x, y, target) {
     // Strict runtime check: only allow CaitlynAI targets
     if (!target || !target.constructor || target.constructor.name !== 'CaitlynAI') {
-      if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'ERROR: UltProjectile target is not CaitlynAI!';
+      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile target is not CaitlynAI!';
       console.error('ERROR: UltProjectile target is not CaitlynAI!', target);
       this.alive = false;
       return;
@@ -3366,7 +3366,7 @@ class UltProjectile {
     if (!this.alive) return;
     // Runtime check: only update if target is CaitlynAI
     if (!this.target || !this.target.constructor || this.target.constructor.name !== 'CaitlynAI') {
-      if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'ERROR: UltProjectile update: target is not CaitlynAI!';
+      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile update: target is not CaitlynAI!';
       console.error('ERROR: UltProjectile update: target is not CaitlynAI!', this.target);
       this.alive = false;
       return;
@@ -4619,6 +4619,9 @@ showGoldBtn.onclick = () => {
 };
 document.getElementById('ui').appendChild(showGoldBtn);
 window.showPlayerGold = false;
+
+// Ensure this is at the top-level, not inside any function:
+const TEMPORAL_FRAMES = 8;
 
 </script>
 </body>
