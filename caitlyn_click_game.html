@@ -1903,15 +1903,21 @@ class Minion {
     if (!this.alive) return;
     drawHealthbar(this.x, this.y - this.radius - 14, 32, 6, this.hp, this.baseHp);
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = this.color;
-    ctx.globalAlpha = 0.85;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#fff';
-    ctx.stroke();
+    if (minionImgLoaded) {
+      const SPRITE_SIZE = 64;
+      const minionSize = SPRITE_SIZE / 4;
+      ctx.drawImage(minionImg, this.x - minionSize / 2, this.y - minionSize / 2, minionSize, minionSize);
+    } else {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+    }
     ctx.font = 'bold 12px sans-serif';
     ctx.fillStyle = '#fff';
     ctx.fillText(Math.round(this.hp), this.x - 10, this.y + 4);
@@ -2816,6 +2822,12 @@ document.addEventListener('DOMContentLoaded', function() {
     header.classList.add('pulse');
   }
 });
+
+// Load Minion sprite
+const minionImg = new Image();
+minionImg.src = 'minion.png';
+let minionImgLoaded = false;
+minionImg.onload = () => { minionImgLoaded = true; };
 
 </script>
 </body>
