@@ -643,15 +643,8 @@ class CaitlynAI {
     this.rTarget = rTarget; // Store rTarget for targeting
     
     // Debug logging for first few frames to understand Q casting behavior
-    if (typeof generation !== 'undefined' && generation <= 300) {
-      // FORCE: Only target minions for first 300 generations
-      let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
-      if (enemyMinions.length > 0) {
-        // Closest minion
-        enemyMinions.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
-        target = enemyMinions[0];
-      }
-    }
+    // (Removed forced minion targeting for first 300 generations)
+    // End removed block
     
     return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, useR: useR > 0.5, rTarget, qAngle };
   }
@@ -743,7 +736,8 @@ class CaitlynAI {
       trap.update(now);
       if (trap.armed && !trap.triggered) {
         for (const enemy of others) {
-          if (enemy.team !== this.team && enemy.hp > 0 && !enemy.trapped) {
+          // Patch: allow Zed to be trapped too
+          if (enemy.team !== this.team && enemy.hp > 0 && !enemy.trapped /* && (enemy.isZed || enemy.constructor.name === 'CaitlynAI') */) {
             const dist = Math.hypot(enemy.x - trap.x, enemy.y - trap.y);
             if (dist < TRAP_TRIGGER_RADIUS) {
               trap.triggered = true;
@@ -906,9 +900,11 @@ class CaitlynAI {
       }
     }
     // Track minimum distance to enemy Nexus
-    const enemyNexus = nexuses[1 - this.team];
-    const distToNexus = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
-    if (distToNexus < this.minDistToEnemyNexus) this.minDistToEnemyNexus = distToNexus;
+    if (this.team === 0 || this.team === 1) {
+      const enemyNexus = nexuses[1 - this.team];
+      const distToNexus = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
+      if (distToNexus < this.minDistToEnemyNexus) this.minDistToEnemyNexus = distToNexus;
+    }
     // Reward for standing in bush
     if (inBrush(this.x, this.y)) this.fitness += 0.01 * delta;
     // DPM fitness: add damage per second
@@ -972,7 +968,7 @@ class CaitlynAI {
         if (candidate && candidate.team !== this.team && candidate !== this && candidate.constructor && candidate.constructor.name === 'CaitlynAI') {
           this.rTarget = candidate;
           this.rChanneling = true;
-          this.rChannelTime = 1.0; // 1s channel
+          this.rChannelTime = 3.0; // 3s channel (was 1.0)
         } else {
           if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
           this.rTarget = null;
@@ -1896,35 +1892,20 @@ function initCaitlyns(brain) {
   caitlyns = [];
   for (let t = 0; t < NUM_TEAMS; ++t) {
     for (let i = 0; i < TEAM_SIZE; ++i) {
-      // Spawn Caitlyns at random positions across the map
-      const x = Math.random() * (CANVAS_WIDTH - 40) + 20;
-      const y = Math.random() * (CANVAS_HEIGHT - 40) + 20;
-      const color = TEAM_COLORS[t];
-      
-      // Ensure each Caitlyn gets a unique brain with diversity
-      let uniqueBrain;
-      if (brain) {
-        // Test if the saved brain produces extreme outputs
-        const testInputs = Array(35).fill(0);
-        const testOutput = feedforward(testInputs, brain);
-        const hasExtremeOutputs = testOutput.some(val => Math.abs(val) > 0.9);
-        
-        if (hasExtremeOutputs) {
-          // If brain is too extreme, start with random brain instead
-          console.log('Saved brain produces extreme outputs, using random brain for diversity');
-          uniqueBrain = CaitlynAI.randomBrain();
-        } else {
-          // Use saved brain as base but add significant mutation for diversity
-          uniqueBrain = CaitlynAI.mutate(brain, 0.4 + Math.random() * 0.3); // 40-70% mutation
-        }
-      } else {
-        // Start with completely random brain
-        uniqueBrain = CaitlynAI.randomBrain();
-      }
-      
-      caitlyns.push(new CaitlynAI(x, y, color, t, uniqueBrain));
+      let c = new CaitlynAI(
+        t === 0 ? 200 : CANVAS_WIDTH - 200, // x
+        t === 0 ? CANVAS_HEIGHT - 200 : 200, // y
+        TEAM_COLORS[t], // color
+        t, // team
+        brain ? brain.slice() : undefined // brain
+      );
+      caitlyns.push(c);
     }
   }
+  // Add neutral Zed
+  let zed = new CaitlynAI(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, '#00ff00', -1, brain ? brain.slice() : undefined);
+  zed.isZed = true;
+  caitlyns.push(zed);
 }
 
 // Minion scaling per minute
@@ -2083,6 +2064,7 @@ class Minion {
           dmg *= 0.5;
         }
         this.target.hp -= dmg;
+        if (this.target instanceof Nexus && this.target.hp < 0) this.target.hp = 0;
         if (this.target.hp <= 0 && this.target instanceof Minion && this.target.lastHitBy) {
           this.target.lastHitBy.gold += this.target.gold;
           this.target.lastHitBy.minionLastHits = (this.target.lastHitBy.minionLastHits || 0) + 1;
@@ -2484,6 +2466,10 @@ function gameLoop(timestamp) {
     // Update and draw turrets
     turrets.forEach(t => t.update(caitlyns, minions));
     turrets.forEach(t => t.draw());
+    // Update and draw turret projectiles
+    turretProjectiles.forEach(p => p.update(delta));
+    turretProjectiles.forEach(p => p.draw());
+    turretProjectiles = turretProjectiles.filter(p => p.alive);
     // Draw nexuses above turrets
     nexuses.forEach(n => n.draw());
 
@@ -2530,6 +2516,9 @@ function gameLoop(timestamp) {
       });
     });
 
+    // Clamp Nexus HP to zero before checking for game end
+    nexuses[0].hp = Math.max(0, nexuses[0].hp);
+    nexuses[1].hp = Math.max(0, nexuses[1].hp);
     // Restore original reset logic: Nexus destroyed
     if (nexuses[0].hp <= 0 || nexuses[1].hp <= 0) {
       // Composite Wild Rift-style score
@@ -2806,6 +2795,14 @@ function gameLoop(timestamp) {
   let bfswordImgLoaded = false;
   bfswordImg.onload = () => { bfswordImgLoaded = true; };
 
+  // Always draw bfsword.png at the center of the screen
+  if (bfswordImgLoaded) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bfswordImg, CANVAS_WIDTH / 2 - 20, CANVAS_HEIGHT / 2 - 20, 40, 40);
+    ctx.restore();
+  }
+
   // BFSword item state
   if (typeof window.bfsword === 'undefined') {
     window.bfsword = {
@@ -2881,6 +2878,14 @@ function gameLoop(timestamp) {
     return ad;
   };
   // --- End BFSword item system ---
+
+  // Draw bfsword.png at the center of the screen (debug/test)
+  if (bfswordImgLoaded) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bfswordImg, CANVAS_WIDTH / 2 - 20, CANVAS_HEIGHT / 2 - 20, 40, 40);
+    ctx.restore();
+  }
 }
 
 // Static property for item icon images
@@ -3341,6 +3346,1105 @@ testBulletBtn.onclick = () => {
 };
 uiDiv.appendChild(testBulletBtn);
 // --- End test bullet button ---
+
+// Load Zed sprite
+const zedImg = new Image();
+zedImg.src = 'zed.png';
+let zedImgLoaded = false;
+zedImg.onload = () => { zedImgLoaded = true; };
+
+// Patch CaitlynAI.draw to use zed.png for Zed
+const origCaitlynDraw = CaitlynAI.prototype.draw;
+CaitlynAI.prototype.draw = function() {
+  if (this.isZed && zedImgLoaded) {
+    if (this.hp <= 0 && !this.dead) return;
+    // Draw healthbar
+    drawHealthbar(this.x, this.y - CAITLYN_RADIUS - 40, 44, 7, this.hp, CAITLYN_BASE_HP + this.getBonusHP());
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,255,0,0.25)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    if (this.dead) return;
+    // Draw Zed sprite
+    const SPRITE_SIZE = 64;
+    let drawX = this.x - SPRITE_SIZE / 2;
+    let drawY = this.y - SPRITE_SIZE / 2;
+    ctx.save();
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 25;
+    ctx.drawImage(zedImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    // Draw speech bubble/thought if needed
+    if (this.thoughtTimer > 0 && this.lastThought) {
+      ctx.save();
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = 0.92;
+      const bubbleY = this.y - CAITLYN_RADIUS - 70;
+      const textWidth = ctx.measureText(this.lastThought).width;
+      ctx.beginPath();
+      ctx.ellipse(this.x, bubbleY, textWidth/2 + 16, 18, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#222';
+      ctx.globalAlpha = 1;
+      ctx.fillText(this.lastThought, this.x, bubbleY + 5);
+      ctx.restore();
+    }
+    return;
+  }
+  origCaitlynDraw.call(this);
+};
+
+// Patch CaitlynAI logic to treat team -1 as enemy for both teams and vice versa
+const origIsEnemy = CaitlynAI.prototype.isEnemy;
+CaitlynAI.prototype.isEnemy = function(other) {
+  if (this.isZed || other.isZed) return this !== other;
+  if (typeof origIsEnemy === 'function') return origIsEnemy.call(this, other);
+  return this.team !== other.team;
+};
+
+// --- Zed Q Projectile ---
+class ZedQProjectile {
+  constructor(owner, x, y, angle, qLevel, bonusAD) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.speed = 1700 * GAME_UNIT_TO_PX;
+    this.range = 900 * GAME_UNIT_TO_PX;
+    this.width = 50 * GAME_UNIT_TO_PX;
+    this.distanceTraveled = 0;
+    this.alive = true;
+    this.hitTargets = new Set();
+    // Damage calculation
+    const baseDmg = [80, 115, 150, 185, 220][qLevel - 1] || 80;
+    this.baseDamage = baseDmg + bonusAD;
+  }
+  update(delta) {
+    if (!this.alive) return;
+    const dx = Math.cos(this.angle) * this.speed * delta;
+    const dy = Math.sin(this.angle) * this.speed * delta;
+    this.x += dx;
+    this.y += dy;
+    this.distanceTraveled += Math.hypot(dx, dy);
+    if (this.distanceTraveled > this.range) this.alive = false;
+    // Hit logic: pierce all, falloff after first
+    let hitCount = 0;
+    for (const c of caitlyns) {
+      if (c === this.owner || c.hp <= 0 || this.hitTargets.has(c)) continue;
+      // Thin rectangle collision
+      const px = c.x - this.x;
+      const py = c.y - this.y;
+      const proj = px * Math.cos(this.angle) + py * Math.sin(this.angle);
+      const ortho = -px * Math.sin(this.angle) + py * Math.cos(this.angle);
+      if (proj > 0 && proj < 60 && Math.abs(ortho) < this.width / 2) {
+        let dmg = this.baseDamage;
+        if (hitCount > 0) dmg = Math.round(dmg * 0.6); // 60% after first
+        c.hp -= dmg;
+        this.hitTargets.add(c);
+        hitCount++;
+      }
+    }
+    // Optionally hit minions, turrets, etc. (add logic as needed)
+  }
+  draw() {
+    if (!this.alive) return;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    ctx.ellipse(this.x, this.y, this.width / 2, 12, this.angle, 0, Math.PI * 2);
+    ctx.fillStyle = '#00eaff';
+    ctx.shadowColor = '#222';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#0ff';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+// --- End Zed Q Projectile ---
+
+// Patch CaitlynAI Q logic for Zed
+const origCaitlynUpdate = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Zed Q logic
+    if (this.qWindup > 0) {
+      this.qWindup -= delta;
+      if (this.qWindup <= 0) {
+        // Fire Zed Q
+        let angle = this.qAngle * Math.PI;
+        // For now, use Q level 5 and bonusAD = 0 (can be improved)
+        let qLevel = 5;
+        let bonusAD = 0;
+        projectiles.push(new ZedQProjectile(this, this.x, this.y, angle, qLevel, bonusAD));
+        this.qTimer = 6; // 6s cooldown
+      }
+      return;
+    }
+    // Q cast trigger
+    if (this.useQIntent > 0.5 && this.qTimer <= 0 && !this.qActive && this.qWindup <= 0) {
+      this.qAttempts++;
+      this.qWindup = 0.25; // Fast windup for Zed
+      return;
+    }
+    // Continue with rest of update
+    origCaitlynUpdate.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  // Default Caitlyn logic
+  origCaitlynUpdate.call(this, others, delta, projectiles, minions, turrets);
+};
+
+// Patch CaitlynAI update to make Zed unkillable
+const origCaitlynUpdateUnkillable = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Zed is unkillable: always keep at least 1 HP and never dead
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+    // Continue with Zed's ability and attack logic
+    origCaitlynUpdateUnkillable.call(this, others, delta, projectiles, minions, turrets);
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+    return;
+  }
+  origCaitlynUpdateUnkillable.call(this, others, delta, projectiles, minions, turrets);
+};
+
+// --- Zed Living Shadow (W) ---
+class ZedShadow {
+  constructor(owner, x, y) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.spawnTime = performance.now();
+    this.duration = 5000; // ms
+    this.active = true;
+  }
+  update() {
+    if (!this.active) return;
+    if (performance.now() - this.spawnTime > this.duration) {
+      this.active = false;
+    }
+  }
+  draw() {
+    if (!this.active) return;
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 22, 0, Math.PI * 2);
+    ctx.fillStyle = '#222';
+    ctx.shadowColor = '#00eaff';
+    ctx.shadowBlur = 18;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#00eaff';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = '#00eaff';
+    ctx.fillText('W', this.x, this.y + 6);
+    ctx.restore();
+  }
+}
+// --- End Zed Living Shadow ---
+
+// Patch CaitlynAI for Zed W logic
+const origCaitlynUpdateW = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // --- Living Shadow state ---
+    if (!this.zedShadow) this.zedShadow = null;
+    if (!this.wCooldown) this.wCooldown = 0;
+    if (!this.wActive) this.wActive = false;
+    if (!this.wSwapAvailable) this.wSwapAvailable = false;
+    if (!this.wTimer) this.wTimer = 0;
+    // Cooldown
+    if (this.wCooldown > 0) this.wCooldown -= delta;
+    // Update shadow
+    if (this.zedShadow && this.zedShadow.active) {
+      this.zedShadow.update();
+      if (!this.zedShadow.active) {
+        this.zedShadow = null;
+        this.wActive = false;
+        this.wSwapAvailable = false;
+        this.wCooldown = 20; // 20s base cooldown
+      }
+    }
+    // --- W input logic ---
+    // For demo: use E key for W cast, R key for swap (replace with real input as needed)
+    if (window.zedWCast) {
+      // First cast: throw shadow
+      if (!this.zedShadow && this.wCooldown <= 0) {
+        // Throw shadow in facing direction (qAngle)
+        let angle = this.qAngle * Math.PI;
+        let dist = 700 * GAME_UNIT_TO_PX;
+        let sx = this.x + Math.cos(angle) * dist;
+        let sy = this.y + Math.sin(angle) * dist;
+        this.zedShadow = new ZedShadow(this, sx, sy);
+        this.wActive = true;
+        this.wSwapAvailable = true;
+        this.wTimer = 5.0;
+        this.wCooldown = 20; // Start cooldown on cast
+      } else if (this.zedShadow && this.wSwapAvailable) {
+        // Second cast: swap
+        // Only allow swap if within 1300 units
+        let dx = this.zedShadow.x - this.x;
+        let dy = this.zedShadow.y - this.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist <= 1300 * GAME_UNIT_TO_PX) {
+          // Swap positions
+          let tmpX = this.x, tmpY = this.y;
+          this.x = this.zedShadow.x;
+          this.y = this.zedShadow.y;
+          this.zedShadow.x = tmpX;
+          this.zedShadow.y = tmpY;
+          this.zedShadow.active = false;
+          this.zedShadow = null;
+          this.wActive = false;
+          this.wSwapAvailable = false;
+          // Cooldown continues
+        }
+      }
+      window.zedWCast = false;
+    }
+    // Shadow timer
+    if (this.zedShadow && this.zedShadow.active) {
+      this.wTimer -= delta;
+      if (this.wTimer <= 0) {
+        this.zedShadow.active = false;
+        this.zedShadow = null;
+        this.wActive = false;
+        this.wSwapAvailable = false;
+      }
+    }
+    // --- Shadow mimics Q ---
+    if (this.qWindup > 0) {
+      this.qWindup -= delta;
+      if (this.qWindup <= 0) {
+        // Fire Zed Q from both Zed and shadow if present
+        let angle = this.qAngle * Math.PI;
+        let qLevel = 5;
+        let bonusAD = 0;
+        projectiles.push(new ZedQProjectile(this, this.x, this.y, angle, qLevel, bonusAD));
+        if (this.zedShadow && this.zedShadow.active) {
+          projectiles.push(new ZedQProjectile(this, this.zedShadow.x, this.zedShadow.y, angle, qLevel, bonusAD));
+        }
+        this.qTimer = 6;
+      }
+      return;
+    }
+    if (this.useQIntent > 0.5 && this.qTimer <= 0 && !this.qActive && this.qWindup <= 0) {
+      this.qAttempts++;
+      this.qWindup = 0.25;
+      return;
+    }
+    // Continue with rest of update
+    origCaitlynUpdateW.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  origCaitlynUpdateW.call(this, others, delta, projectiles, minions, turrets);
+};
+// --- Draw Zed shadow in game loop ---
+const origCaitlynDrawW = CaitlynAI.prototype.draw;
+CaitlynAI.prototype.draw = function() {
+  if (this.isZed && this.zedShadow && this.zedShadow.active) {
+    this.zedShadow.draw();
+  }
+  origCaitlynDrawW.call(this);
+};
+// --- End Zed Living Shadow ---
+
+// Patch CaitlynAI for Zed melee attack and ability restrictions
+const origCaitlynUpdateAbilities = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Set Zed's attack range to melee (125 units)
+    this.attackRange = 125 * GAME_UNIT_TO_PX;
+    // Prevent Caitlyn Q/W/E logic for Zed (handled in Zed-specific code)
+    // Only allow Zed's Q and W logic (already patched above)
+    // Skip Caitlyn's Q windup/cast, trap, and net logic
+    // --- Zed Q and W logic are handled in previous patch ---
+    // Continue with rest of update (movement, attack, etc.)
+    origCaitlynUpdateAbilities.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  origCaitlynUpdateAbilities.call(this, others, delta, projectiles, minions, turrets);
+};
+
+const origCaitlynUpdateBlockAbilities = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Set Zed's attack range to melee (125 units)
+    this.attackRange = 125 * GAME_UNIT_TO_PX;
+    // Only run Zed's Q and W logic (already patched above), and melee attack
+    // Block Caitlyn's Q, W, E logic by returning early here
+    // --- Zed Q and W logic are handled in previous patch ---
+    // Melee attack logic (copied from Caitlyn, but no headshot, trap, or net)
+    this.attackTimer -= delta;
+    const { moveX, moveY, target, attack } = this.decide(others, minions, turrets);
+    let doAttack = attack;
+    if (!doAttack && target && this.attackTimer <= 0) {
+      const dist = Math.hypot(target.x - this.x, target.y - this.y);
+      if (dist <= this.attackRange) doAttack = true;
+    }
+    if (this.windupTimer > 0) {
+      this.windupTimer -= delta;
+      if (this.windupTimer <= 0 && this.pendingAttack) {
+        const { target, damage } = this.pendingAttack;
+        if (target && target.hp > 0) {
+          basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
+            target.hp -= damage;
+            if (target.hp < 0) target.hp = 0;
+            if (target.hp === 0 && target instanceof Minion) target.alive = false;
+            this.damageDealt += damage;
+          }, false, target));
+        }
+        this.pendingAttack = null;
+      }
+      return;
+    }
+    const dist = target ? Math.hypot(target.x - this.x, target.y - this.y) : Infinity;
+    if (doAttack && target && this.attackTimer <= 0 && dist <= this.attackRange) {
+      this.attackAttempts++;
+      let damage = CAITLYN_BASE_AD; // Use base AD for now
+      this.windupTimer = this.attackWindup;
+      this.pendingAttack = { target, damage };
+      this.attackTimer = this.attackDelay;
+      if (target && target instanceof Minion) target.lastHitBy = this;
+      return;
+    } else {
+      // Move if not in range, or attack is on cooldown
+      let speed = this.moveSpeed * parseFloat(speedSlider.value);
+      const jitter = 0.2;
+      let moveVecX = moveX;
+      let moveVecY = moveY;
+      if (target) {
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-3) {
+          moveVecX = dx / len;
+          moveVecY = dy / len;
+        }
+      }
+      this.x += (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
+      this.y += (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      if (!isFinite(this.x) || !isFinite(this.y)) {
+        this.x = Math.max(0, Math.min(CANVAS_WIDTH, isFinite(this.x) ? this.x : 400));
+        this.y = Math.max(0, Math.min(CANVAS_HEIGHT, isFinite(this.y) ? this.y : 300));
+      } else {
+        this.x = Math.max(0, Math.min(CANVAS_WIDTH, this.x));
+        this.y = Math.max(0, Math.min(CANVAS_HEIGHT, this.y));
+      }
+    }
+    // Block Caitlyn's Q/W/E logic for Zed
+    return;
+  }
+  origCaitlynUpdateBlockAbilities.call(this, others, delta, projectiles, minions, turrets);
+};
+
+// --- Zed Shadow Slash (E) ---
+class ZedESlash {
+  constructor(owner, x, y, eLevel, bonusAD, isShadow) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.radius = 290 * GAME_UNIT_TO_PX;
+    this.eLevel = eLevel;
+    this.bonusAD = bonusAD;
+    this.isShadow = isShadow;
+    this.hit = new Set();
+    this.visualTimer = 0.25; // Show for 0.25s
+  }
+  update(delta) {
+    this.visualTimer -= delta;
+    if (this.visualTimer <= 0) this.alive = false;
+    // Damage logic only on first frame
+    if (!this.didDamage) {
+      this.didDamage = true;
+      let baseDmg = [70, 95, 120, 145, 170][this.eLevel - 1] || 70;
+      let dmg = baseDmg + Math.round(this.bonusAD * 0.8);
+      let slowPct = [0.2, 0.25, 0.3, 0.35, 0.4][this.eLevel - 1] || 0.2;
+      let slowDuration = 1.5;
+      for (const c of caitlyns) {
+        if (c.hp <= 0 || this.hit.has(c)) continue;
+        const dist = Math.hypot(c.x - this.x, c.y - this.y);
+        if (dist <= this.radius) {
+          // Only first hit per cast deals damage
+          if (!c._zedEHitThisCast) {
+            c.hp -= dmg;
+            c._zedEHitThisCast = true;
+            if (this.isShadow) {
+              // Apply slow
+              c._zedESlow = slowPct;
+              c._zedESlowTimer = slowDuration;
+              // Cooldown refund logic (handled in Zed's update)
+              if (!c._zedERefunded && c !== this.owner) {
+                c._zedERefunded = true;
+                if (this.owner && this.owner._zedEChampHit) this.owner._zedEChampHit.add(c);
+              }
+            }
+          } else if (this.isShadow) {
+            // Refresh slow if hit by shadow after main
+            c._zedESlow = slowPct;
+            c._zedESlowTimer = slowDuration;
+          }
+          this.hit.add(c);
+        }
+      }
+    }
+  }
+  draw() {
+    if (this.visualTimer <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = 0.22 + 0.18 * Math.sin(performance.now() / 80);
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.isShadow ? '#00eaff' : '#ffeb3b';
+    ctx.shadowColor = this.isShadow ? '#00eaff' : '#ffeb3b';
+    ctx.shadowBlur = 24;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+// --- End Zed Shadow Slash ---
+
+// Patch CaitlynAI for Zed E logic
+const origCaitlynUpdateE = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // --- Zed E state ---
+    if (!this.eCooldown) this.eCooldown = 0;
+    if (!this.energy) this.energy = 200;
+    if (!this._zedEChampHit) this._zedEChampHit = new Set();
+    // Cooldown
+    if (this.eCooldown > 0) this.eCooldown -= delta;
+    // Slow effect
+    if (this._zedESlowTimer > 0) {
+      this._zedESlowTimer -= delta;
+      if (this._zedESlowTimer <= 0) this._zedESlow = 0;
+    }
+    // --- E input logic ---
+    if (window.zedECast) {
+      if (this.eCooldown <= 0 && this.energy >= 50) {
+        // Cast E from Zed and shadow(s)
+        let eLevel = 5; // For now, max level
+        let bonusAD = 0;
+        // Mark all Caitlyns as not hit this cast
+        for (const c of caitlyns) {
+          c._zedEHitThisCast = false;
+          c._zedERefunded = false;
+        }
+        this._zedEChampHit.clear();
+        // Zed's own slash
+        let eSlash = new ZedESlash(this, this.x, this.y, eLevel, bonusAD, false);
+        eSlash.alive = true;
+        projectiles.push(eSlash);
+        // Shadow(s) slash
+        if (this.zedShadow && this.zedShadow.active) {
+          let shadowSlash = new ZedESlash(this, this.zedShadow.x, this.zedShadow.y, eLevel, bonusAD, true);
+          shadowSlash.alive = true;
+          projectiles.push(shadowSlash);
+        }
+        // Cooldown refund: for each champ hit by shadow, -2s
+        if (this._zedEChampHit.size > 0) {
+          this.eCooldown = Math.max(0, 5 - 2 * this._zedEChampHit.size);
+        } else {
+          this.eCooldown = 5;
+        }
+        this.energy -= 50;
+      }
+      window.zedECast = false;
+    }
+    // Update all E slashes (visuals, slow)
+    for (const p of projectiles) {
+      if (p instanceof ZedESlash && p.owner === this) p.update(delta);
+    }
+    // Continue with rest of update
+    origCaitlynUpdateE.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  origCaitlynUpdateE.call(this, others, delta, projectiles, minions, turrets);
+};
+// --- End Zed Shadow Slash ---
+
+// --- Zed Death Mark (R) ---
+class ZedRShadow {
+  constructor(owner, x, y) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.spawnTime = performance.now();
+    this.duration = 6000; // ms
+    this.active = true;
+  }
+  update() {
+    if (!this.active) return;
+    if (performance.now() - this.spawnTime > this.duration) {
+      this.active = false;
+    }
+  }
+  draw() {
+    if (!this.active) return;
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 24, 0, Math.PI * 2);
+    ctx.fillStyle = '#222';
+    ctx.shadowColor = '#ff1744';
+    ctx.shadowBlur = 22;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ff1744';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = '#ff1744';
+    ctx.fillText('R', this.x, this.y + 6);
+    ctx.restore();
+  }
+}
+// --- End Zed Death Mark ---
+
+// Patch CaitlynAI for Zed R logic
+const origCaitlynUpdateR = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // --- Zed R state ---
+    if (!this.rCooldown) this.rCooldown = 0;
+    if (!this.rLevel) this.rLevel = 3;
+    if (!this.rShadow) this.rShadow = null;
+    if (!this.rMarkActive) this.rMarkActive = false;
+    if (!this.rMarkTarget) this.rMarkTarget = null;
+    if (!this.rMarkTimer) this.rMarkTimer = 0;
+    if (!this.rMarkBaseDmg) this.rMarkBaseDmg = 0;
+    if (!this.rMarkDamage) this.rMarkDamage = 0;
+    if (!this.rUntargetable) this.rUntargetable = false;
+    if (!this.rUntargetableTimer) this.rUntargetableTimer = 0;
+    // Cooldown
+    if (this.rCooldown > 0) this.rCooldown -= delta;
+    // Update R shadow
+    if (this.rShadow && this.rShadow.active) this.rShadow.update();
+    // --- R input logic ---
+    if (window.zedRCast) {
+      if (!this.rMarkActive && this.rCooldown <= 0) {
+        // Find nearest enemy Caitlyn
+        let candidates = caitlyns.filter(c => c !== this && c.hp > 0 && c.team !== this.team);
+        if (candidates.length > 0) {
+          let target = candidates.reduce((best, c) => Math.hypot(c.x - this.x, c.y - this.y) < Math.hypot(best.x - this.x, best.y - this.y) ? c : best, candidates[0]);
+          // Dash to target (625 units max)
+          let dx = target.x - this.x;
+          let dy = target.y - this.y;
+          let dist = Math.hypot(dx, dy);
+          let dashDist = Math.min(dist, 625 * GAME_UNIT_TO_PX);
+          let dashAngle = Math.atan2(dy, dx);
+          // Create R shadow at original position
+          this.rShadow = new ZedRShadow(this, this.x, this.y);
+          // Become untargetable for 0.75s
+          this.rUntargetable = true;
+          this.rUntargetableTimer = 0.75;
+          // Move Zed to behind target after dash
+          this.rMarkTarget = target;
+          this.rMarkActive = true;
+          this.rMarkTimer = 3.0;
+          this.rMarkBaseDmg = [100, 200, 300][this.rLevel - 1] || 100;
+          this.rMarkDamage = 0;
+          // Move to behind target
+          setTimeout(() => {
+            this.x = target.x - Math.cos(dashAngle) * 40;
+            this.y = target.y - Math.sin(dashAngle) * 40;
+            this.rUntargetable = false;
+          }, 750);
+          this.rCooldown = [120, 100, 80][this.rLevel - 1] || 120;
+        }
+      } else if (this.rShadow && this.rShadow.active) {
+        // Swap to R shadow
+        let tmpX = this.x, tmpY = this.y;
+        this.x = this.rShadow.x;
+        this.y = this.rShadow.y;
+        this.rShadow.active = false;
+        this.rShadow = null;
+      }
+      window.zedRCast = false;
+    }
+    // Untargetable timer
+    if (this.rUntargetable) {
+      this.rUntargetableTimer -= delta;
+      if (this.rUntargetableTimer <= 0) this.rUntargetable = false;
+    }
+    // Mark logic: track damage
+    if (this.rMarkActive && this.rMarkTarget && this.rMarkTarget.hp > 0) {
+      this.rMarkTimer -= delta;
+      // Track damage dealt to target
+      if (!this.rMarkTarget._zedRMarkLastHP) this.rMarkTarget._zedRMarkLastHP = this.rMarkTarget.hp;
+      let deltaDmg = this.rMarkTarget._zedRMarkLastHP - this.rMarkTarget.hp;
+      if (deltaDmg > 0) this.rMarkDamage += deltaDmg;
+      this.rMarkTarget._zedRMarkLastHP = this.rMarkTarget.hp;
+      // Visual indicator
+      this.rMarkTarget._zedRMarked = true;
+      this.rMarkTarget._zedRMarkTimer = this.rMarkTimer;
+      if (this.rMarkTimer <= 0) {
+        // Detonate
+        let totalDmg = this.rMarkBaseDmg + Math.round(this.rMarkDamage * 0.65);
+        this.rMarkTarget.hp -= totalDmg;
+        this.rMarkTarget._zedRMarked = false;
+        this.rMarkTarget._zedRMarkTimer = 0;
+        this.rMarkActive = false;
+        this.rMarkTarget = null;
+        this.rMarkDamage = 0;
+      }
+    }
+    // Draw R shadow
+    if (this.rShadow && this.rShadow.active) this.rShadow.draw();
+    // Marked target visual
+    for (const c of caitlyns) {
+      if (c._zedRMarked && c._zedRMarkTimer > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, CAITLYN_RADIUS + 32, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ff1744';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([10, 8]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = 'bold 18px monospace';
+        ctx.fillStyle = '#ff1744';
+        ctx.fillText('☠', c.x, c.y - CAITLYN_RADIUS - 38);
+        ctx.restore();
+      }
+    }
+    // Continue with rest of update
+    origCaitlynUpdateR.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  origCaitlynUpdateR.call(this, others, delta, projectiles, minions, turrets);
+};
+// --- End Zed Death Mark ---
+
+const origCaitlynUpdateUnkillableAbsolute = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Zed is absolutely unkillable: always keep at least 1 HP and never dead
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+    // If dashing with R, also set untargetable
+    if (this.rUntargetable) {
+      this.hp = Math.max(this.hp, 1);
+      this.dead = false;
+    }
+    // Continue with Zed's ability and attack logic
+    origCaitlynUpdateUnkillableAbsolute.call(this, others, delta, projectiles, minions, turrets);
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+    return;
+  }
+  origCaitlynUpdateUnkillableAbsolute.call(this, others, delta, projectiles, minions, turrets);
+};
+
+// --- Zed Brain Persistence ---
+const ZED_BRAIN_KEY = 'zed_brain';
+let savedZedBrain = null;
+function loadZedBrain() {
+  try {
+    const data = localStorage.getItem(ZED_BRAIN_KEY);
+    if (data) {
+      let loaded = JSON.parse(data);
+      loaded = migrateBrain(loaded);
+      savedZedBrain = loaded;
+      console.log('Loaded saved Zed brain from localStorage:', savedZedBrain);
+    }
+  } catch (e) {
+    console.log('No saved Zed brain found, starting fresh.');
+  }
+}
+function saveZedBrain(brain) {
+  localStorage.setItem(ZED_BRAIN_KEY, JSON.stringify(migrateBrain(brain)));
+}
+// --- End Zed Brain Persistence ---
+
+// Patch initCaitlyns to use Zed's brain
+const origInitCaitlyns = initCaitlyns;
+initCaitlyns = function(brain) {
+  loadZedBrain();
+  origInitCaitlyns(brain);
+  // Assign Zed's brain
+  for (const c of caitlyns) {
+    if (c.isZed) {
+      if (savedZedBrain) c.brain = savedZedBrain.slice();
+      else c.brain = CaitlynAI.randomBrain();
+    }
+  }
+};
+// --- End patch ---
+
+// Patch Zed's update to use brain for ability and attack decisions
+const origCaitlynUpdateZedBrain = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Zed is absolutely unkillable
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+    // Zed brain: 35 inputs, 11 outputs (same as Caitlyn)
+    // Inputs: positions, HP, cooldowns, etc. (reuse Caitlyn's logic)
+    let inputs = [];
+    let me = this;
+    const myBush = whichBush(this.x, this.y);
+    let enemies = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && (myBush === -1 || whichBush(c.x, c.y) === myBush || whichBush(c.x, c.y) === -1));
+    let allies = caitlyns.filter(c => c.team === this.team && c !== this && c.hp > 0);
+    for (let i = 0; i < TEAM_SIZE; ++i) {
+      let e = enemies[i] || { x: 0, y: 0, hp: 0 };
+      inputs.push((e.x - me.x) / CANVAS_WIDTH, (e.y - me.y) / CANVAS_HEIGHT, e.hp / 600);
+    }
+    for (let i = 0; i < TEAM_SIZE - 1; ++i) {
+      let a = allies[i] || { x: 0, y: 0, hp: 0 };
+      inputs.push((a.x - me.x) / CANVAS_WIDTH, (a.y - me.y) / CANVAS_HEIGHT, a.hp / 600);
+    }
+    inputs.push(this.attackTimer / 2, this.qTimer / 10, 0, inBrush(this.x, this.y) ? 1 : 0);
+    inputs.push(distToNearestBush(this.x, this.y) / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT));
+    let minTurretDist = 1e9;
+    for (const t of turrets) {
+      if (t.team !== this.team) {
+        const d = Math.hypot(this.x - t.x, this.y - t.y) - t.range;
+        if (Math.abs(d) < Math.abs(minTurretDist)) minTurretDist = d;
+      }
+    }
+    inputs.push(Math.max(-1, Math.min(1, minTurretDist / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT))));
+    while (inputs.length < 18) inputs.push(0);
+    let allTraps = [];
+    caitlyns.forEach(c => allTraps.push(...c.traps));
+    allTraps = allTraps.filter(trap => trap.alive);
+    allTraps.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (let i = 0; i < 3; ++i) {
+      const trap = allTraps[i];
+      if (trap) {
+        inputs.push((trap.x - me.x) / CANVAS_WIDTH);
+        inputs.push((trap.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(trap.armed ? 1 : 0);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    inputs.push(this.eCooldown / 16);
+    let nearestEnemyDist = 1e9;
+    for (const enemy of enemies) {
+      const dist = Math.hypot(enemy.x - me.x, enemy.y - me.y);
+      if (dist < nearestEnemyDist) nearestEnemyDist = dist;
+    }
+    inputs.push(Math.min(1, nearestEnemyDist / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT)));
+    let friendlyMinions = minions.filter(m => m.team === this.team && m.alive);
+    let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+    friendlyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    enemyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (let i = 0; i < 3; ++i) {
+      const minion = friendlyMinions[i];
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    for (let i = 0; i < 3; ++i) {
+      const minion = enemyMinions[i];
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    let out = feedforward(inputs, this.brain);
+    // Outputs: moveX, moveY, attack, useQ, useW, useE, useR, qAngle, rTarget
+    const [moveX, moveY, attack, useQ, useW, useE, useR, qAngle, rTarget] = out;
+    this.moveX = moveX;
+    this.moveY = moveY;
+    this.attackIntent = attack;
+    this.useQIntent = useQ;
+    this.useWIntent = useW;
+    this.useEIntent = useE;
+    this.useRIntent = useR;
+    this.qAngle = qAngle;
+    this.rTarget = rTarget;
+    // Now abilities will be triggered by these intents in the rest of the update logic
+    origCaitlynUpdateZedBrain.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  origCaitlynUpdateZedBrain.call(this, others, delta, projectiles, minions, turrets);
+};
+// --- End Zed brain patch ---
+
+// Patch save logic to save best Zed brain after each generation
+const origMain = main;
+main = function() {
+  loadBrain();
+  loadZedBrain();
+  origMain();
+};
+const origEndGeneration = initCaitlyns;
+initCaitlyns = function(brain) {
+  origEndGeneration(brain);
+  // Save best Zed brain
+  let bestZed = caitlyns.find(c => c.isZed);
+  if (bestZed) saveZedBrain(bestZed.brain);
+};
+// ... existing code ...
+
+// Patch TurretProjectile to animate as a red laser
+const origTurretProjectileDraw = TurretProjectile.prototype.draw;
+TurretProjectile.prototype.draw = function() {
+  if (!this.alive || !this.target || this.target.hp <= 0) return;
+  ctx.save();
+  // Draw thin red laser line
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = '#ff1744';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(this.x, this.y);
+  ctx.lineTo(this.target.x, this.target.y);
+  ctx.shadowColor = '#ff1744';
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Draw thick red impact circle at target
+  ctx.beginPath();
+  ctx.arc(this.target.x, this.target.y, 16, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = '#ff1744';
+  ctx.shadowColor = '#ff1744';
+  ctx.shadowBlur = 18;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
+  ctx.restore();
+};
+// ... existing code ...
+
+// --- Zed Ability Visual Cues ---
+const origZedDraw = CaitlynAI.prototype.draw;
+CaitlynAI.prototype.draw = function() {
+  if (this.isZed && zedImgLoaded) {
+    // Q windup: blue glow
+    if (this.qWindup > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 38, 0, Math.PI * 2);
+      ctx.fillStyle = '#00eaff';
+      ctx.shadowColor = '#00eaff';
+      ctx.shadowBlur = 18;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    // W cast: dark arc from Zed to shadow
+    if (this.zedShadow && this.zedShadow.active && this.wActive && this.wTimer > 4.8) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.zedShadow.x, this.zedShadow.y);
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 8;
+      ctx.shadowColor = '#00eaff';
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    // E cast: red flash/spin
+    if (this.useEIntent > 0.5 && this.eCooldown < 0.2) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 32, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff1744';
+      ctx.shadowColor = '#ff1744';
+      ctx.shadowBlur = 16;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    // R dash: fade out/in and shadow trail
+    if (this.rUntargetable) {
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 34, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff1744';
+      ctx.shadowColor = '#ff1744';
+      ctx.shadowBlur = 24;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    // Draw Zed sprite as usual
+    ctx.save();
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 25;
+    const SPRITE_SIZE = 64;
+    let drawX = this.x - SPRITE_SIZE / 2;
+    let drawY = this.y - SPRITE_SIZE / 2;
+    ctx.drawImage(zedImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    // Draw shadow(s)
+    if (this.zedShadow && this.zedShadow.active) this.zedShadow.draw();
+    if (this.rShadow && this.rShadow.active) this.rShadow.draw();
+    // Draw speech bubble/thought if needed
+    if (this.thoughtTimer > 0 && this.lastThought) {
+      ctx.save();
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = 0.92;
+      const bubbleY = this.y - CAITLYN_RADIUS - 70;
+      const textWidth = ctx.measureText(this.lastThought).width;
+      ctx.beginPath();
+      ctx.ellipse(this.x, bubbleY, textWidth/2 + 16, 18, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#222';
+      ctx.globalAlpha = 1;
+      ctx.fillText(this.lastThought, this.x, bubbleY + 5);
+      ctx.restore();
+    }
+    return;
+  }
+  origZedDraw.call(this);
+};
+// --- End Zed Ability Visual Cues ---
+
+const origCaitlynUpdateZedBrainRandom = CaitlynAI.prototype.update;
+CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
+  if (this.isZed) {
+    // Zed is absolutely unkillable
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+    // Use neural net for movement/attack/intent as before
+    let inputs = [];
+    let me = this;
+    const myBush = whichBush(this.x, this.y);
+    let enemies = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && (myBush === -1 || whichBush(c.x, c.y) === myBush || whichBush(c.x, c.y) === -1));
+    let allies = caitlyns.filter(c => c.team === this.team && c !== this && c.hp > 0);
+    for (let i = 0; i < TEAM_SIZE; ++i) {
+      let e = enemies[i] || { x: 0, y: 0, hp: 0 };
+      inputs.push((e.x - me.x) / CANVAS_WIDTH, (e.y - me.y) / CANVAS_HEIGHT, e.hp / 600);
+    }
+    for (let i = 0; i < TEAM_SIZE - 1; ++i) {
+      let a = allies[i] || { x: 0, y: 0, hp: 0 };
+      inputs.push((a.x - me.x) / CANVAS_WIDTH, (a.y - me.y) / CANVAS_HEIGHT, a.hp / 600);
+    }
+    inputs.push(this.attackTimer / 2, this.qTimer / 10, 0, inBrush(this.x, this.y) ? 1 : 0);
+    inputs.push(distToNearestBush(this.x, this.y) / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT));
+    let minTurretDist = 1e9;
+    for (const t of turrets) {
+      if (t.team !== this.team) {
+        const d = Math.hypot(this.x - t.x, this.y - t.y) - t.range;
+        if (Math.abs(d) < Math.abs(minTurretDist)) minTurretDist = d;
+      }
+    }
+    inputs.push(Math.max(-1, Math.min(1, minTurretDist / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT))));
+    while (inputs.length < 18) inputs.push(0);
+    let allTraps = [];
+    caitlyns.forEach(c => allTraps.push(...c.traps));
+    allTraps = allTraps.filter(trap => trap.alive);
+    allTraps.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (let i = 0; i < 3; ++i) {
+      const trap = allTraps[i];
+      if (trap) {
+        inputs.push((trap.x - me.x) / CANVAS_WIDTH);
+        inputs.push((trap.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(trap.armed ? 1 : 0);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    inputs.push(this.eCooldown / 16);
+    let nearestEnemyDist = 1e9;
+    for (const enemy of enemies) {
+      const dist = Math.hypot(enemy.x - me.x, enemy.y - me.y);
+      if (dist < nearestEnemyDist) nearestEnemyDist = dist;
+    }
+    inputs.push(Math.min(1, nearestEnemyDist / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT)));
+    let friendlyMinions = minions.filter(m => m.team === this.team && m.alive);
+    let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+    friendlyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    enemyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (let i = 0; i < 3; ++i) {
+      const minion = friendlyMinions[i];
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    for (let i = 0; i < 3; ++i) {
+      const minion = enemyMinions[i];
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp);
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+    let out = feedforward(inputs, this.brain);
+    // Outputs: moveX, moveY, attack, useQ, useW, useE, useR, qAngle, rTarget
+    const [moveX, moveY, attack, useQ, useW, useE, useR, qAngle, rTarget] = out;
+    this.moveX = moveX;
+    this.moveY = moveY;
+    this.attackIntent = attack;
+    this.useQIntent = useQ;
+    this.useWIntent = useW;
+    this.useEIntent = useE;
+    this.useRIntent = useR;
+    this.qAngle = qAngle;
+    this.rTarget = rTarget;
+    // --- Random ability casting for testing ---
+    if (Math.random() < 0.01) this.useQIntent = 1;
+    if (Math.random() < 0.008) this.useWIntent = 1;
+    if (Math.random() < 0.012) this.useEIntent = 1;
+    if (Math.random() < 0.006) this.useRIntent = 1;
+    // --- End random casting ---
+    origCaitlynUpdateZedBrainRandom.call(this, others, delta, projectiles, minions, turrets);
+    return;
+  }
+  origCaitlynUpdateZedBrainRandom.call(this, others, delta, projectiles, minions, turrets);
+};
 
 </script>
 </body>
