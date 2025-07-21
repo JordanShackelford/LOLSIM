@@ -2443,11 +2443,13 @@ function gameLoop(timestamp) {
     projectiles = projectiles.filter(p => p.alive);
 
     basicProjectiles.forEach(p => p.update(delta));
+    basicProjectiles.forEach(p => p.draw());
+    basicProjectiles = basicProjectiles.filter(p => p.alive);
+    if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'BasicProjectiles: ' + basicProjectiles.length;
     // Draw minions, turrets, nexuses, caitlyns
     // (already present above)
     // Now draw basic projectiles above all units
     basicProjectiles.forEach(p => p.draw());
-    basicProjectiles = basicProjectiles.filter(p => p.alive);
     
     // Update and draw particle system
     particleSystem.update(delta);
