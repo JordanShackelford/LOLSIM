@@ -651,6 +651,23 @@ class CaitlynAI {
     this.trapIntent = trap;
     this.useEIntent = useE;
     this.qAngle = qAngle; // Store Q angle for aiming
+    
+    // Debug logging for first few frames to understand Q casting behavior
+    if (typeof generation === 'undefined' || generation < 5) {
+      console.log(`Caitlyn (team ${this.team}) neural outputs:`, {
+        moveX: moveX.toFixed(3),
+        moveY: moveY.toFixed(3), 
+        attack: attack.toFixed(3),
+        useQ: useQ.toFixed(3),
+        useQ_threshold: (useQ > 0.5),
+        buy: buy.toFixed(3),
+        recall: recall.toFixed(3),
+        trap: trap.toFixed(3),
+        useE: useE.toFixed(3),
+        qAngle: qAngle.toFixed(3)
+      });
+    }
+    
     return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, qAngle: qAngle };
   }
 
@@ -1255,6 +1272,12 @@ function loadBrain() {
       while (loaded.length > CaitlynAI.WEIGHTS_LEN) loaded.pop();
       savedBrain = loaded;
       console.log('Loaded saved brain from localStorage:', savedBrain);
+      
+      // Debug: Test what the saved brain outputs
+      const testInputs = Array(35).fill(0); // All zeros as test
+      const testOutput = feedforward(testInputs, savedBrain);
+      console.log('Saved brain test output (all zero inputs):', testOutput.map(x => x.toFixed(3)));
+      console.log('useQ value from saved brain:', testOutput[3].toFixed(3), 'threshold:', (testOutput[3] > 0.5));
     }
   } catch (e) {
     console.log('No saved brain found, starting fresh.');
