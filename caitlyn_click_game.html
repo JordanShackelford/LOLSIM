@@ -479,6 +479,9 @@ class CaitlynAI {
     this.rChanneling = false;
     this.rChannelTime = 0;
     this.rTarget = null;
+    // In CaitlynAI constructor, add speech bubble state
+    this.lastThought = '';
+    this.thoughtTimer = 0;
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
   static HIDDEN1 = 24;
@@ -1307,7 +1310,12 @@ class CaitlynAI {
     } else {
       thought = '...';
     }
-    if (thought) {
+    if (thought !== this.lastThought) {
+      this.lastThought = thought;
+      this.thoughtTimer = 2.0; // seconds
+    }
+    if (this.thoughtTimer > 0) {
+      this.thoughtTimer -= 1/60; // assuming 60 FPS, adjust if needed
       ctx.save();
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
