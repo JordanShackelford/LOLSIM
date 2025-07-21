@@ -1703,8 +1703,18 @@ function initCaitlyns(brain) {
       const x = Math.random() * (CANVAS_WIDTH - 40) + 20;
       const y = Math.random() * (CANVAS_HEIGHT - 40) + 20;
       const color = TEAM_COLORS[t];
-      const b = brain ? CaitlynAI.mutate(brain, parseFloat(mutationRateSlider.value)) : undefined;
-      caitlyns.push(new CaitlynAI(x, y, color, t, b));
+      
+      // Ensure each Caitlyn gets a unique brain with diversity
+      let uniqueBrain;
+      if (brain) {
+        // Use saved brain as base but add significant mutation for diversity
+        uniqueBrain = CaitlynAI.mutate(brain, 0.3 + Math.random() * 0.2); // 30-50% mutation
+      } else {
+        // Start with completely random brain
+        uniqueBrain = CaitlynAI.randomBrain();
+      }
+      
+      caitlyns.push(new CaitlynAI(x, y, color, t, uniqueBrain));
     }
   }
 }
