@@ -281,67 +281,28 @@ class BasicProjectile {
     const y = this.y0 + (this.y1 - this.y0) * this.t;
     ctx.save();
     
-    const time = performance.now() / 1000;
-    const pulse = Math.sin(time * 12) * 0.3 + 1;
-    
-    // Enhanced bullet trail with glow
-    ctx.globalAlpha = 0.5;
+    // Draw bullet trail (fainter and thinner)
+    ctx.globalAlpha = 0.12;
     ctx.strokeStyle = this.color;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur = 12;
-    ctx.lineCap = 'round';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.2), this.y0 + (this.y1 - this.y0) * (this.t - 0.2));
+    ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
     ctx.lineTo(x, y);
     ctx.stroke();
     
-    // Draw bullet body with enhanced gradient
-    ctx.globalAlpha = 1;
-    const gradient = ctx.createRadialGradient(x, y, 0, x, y, this.isHeadshot ? 10 : 8);
-    gradient.addColorStop(0, this.isHeadshot ? '#ff6666' : this.color);
-    gradient.addColorStop(0.7, this.isHeadshot ? '#ff4444' : this.color);
-    gradient.addColorStop(1, this.isHeadshot ? '#cc0000' : '#2c3e50');
-    
+    // Draw bullet (smaller and less saturated)
+    ctx.globalAlpha = 0.7;
     ctx.beginPath();
-    ctx.arc(x, y, (this.isHeadshot ? 10 : 8) * pulse, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur = 15;
+    ctx.arc(x, y, this.isHeadshot ? 4 : 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = this.isHeadshot ? '#d44' : '#bbb';
     ctx.fill();
     
-    // Enhanced bullet tip with glow
-    const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
-    ctx.beginPath();
-    ctx.arc(x + Math.cos(angle) * 12, y + Math.sin(angle) * 12, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.shadowColor = '#fff';
-    ctx.shadowBlur = 8;
-    ctx.fill();
-    
-    // Energy particles around bullet
-    for (let i = 0; i < 4; i++) {
-      const particleAngle = (time * 6 + i * Math.PI * 2 / 4) % (Math.PI * 2);
-      const radius = (this.isHeadshot ? 10 : 8) + 6 + Math.sin(time * 8 + i) * 3;
-      const px = x + Math.cos(particleAngle) * radius;
-      const py = y + Math.sin(particleAngle) * radius;
-      
-      ctx.fillStyle = this.color;
-      ctx.globalAlpha = 0.7;
-      ctx.beginPath();
-      ctx.arc(px, py, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    
-    // Headshot indicator ring
-    if (this.isHeadshot) {
-      ctx.strokeStyle = '#ff4444';
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.8;
-      ctx.beginPath();
-      ctx.arc(x, y, 15, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    // Remove bullet tip for less flash
+    // const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
+    // ctx.beginPath();
+    // ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
+    // ctx.fillStyle = '#fff';
+    // ctx.fill();
     
     ctx.restore();
   }
@@ -1546,28 +1507,28 @@ BasicProjectile.prototype.draw = function() {
   const y = this.y0 + (this.y1 - this.y0) * this.t;
   ctx.save();
   
-  // Draw bullet trail
-  ctx.globalAlpha = 0.3;
+  // Draw bullet trail (fainter and thinner)
+  ctx.globalAlpha = 0.12;
   ctx.strokeStyle = this.color;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
   ctx.lineTo(x, y);
   ctx.stroke();
   
-  // Draw bullet
-  ctx.globalAlpha = 1;
+  // Draw bullet (smaller and less saturated)
+  ctx.globalAlpha = 0.7;
   ctx.beginPath();
-  ctx.arc(x, y, this.isHeadshot ? 6 : 4, 0, Math.PI * 2);
-  ctx.fillStyle = this.isHeadshot ? 'red' : this.color;
+  ctx.arc(x, y, this.isHeadshot ? 4 : 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = this.isHeadshot ? '#d44' : '#bbb';
   ctx.fill();
   
-  // Add bullet tip
-  const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
-  ctx.beginPath();
-  ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
-  ctx.fillStyle = '#fff';
-  ctx.fill();
+  // Remove bullet tip for less flash
+  // const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
+  // ctx.beginPath();
+  // ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
+  // ctx.fillStyle = '#fff';
+  // ctx.fill();
   
   ctx.restore();
 };
