@@ -3477,7 +3477,7 @@ class ZedQProjectile {
     this.y = y;
     this.angle = angle;
     this.speed = 1700 * GAME_UNIT_TO_PX;
-    this.range = 900 * GAME_UNIT_TO_PX;
+    this.range = 1600 * GAME_UNIT_TO_PX;
     this.width = 50 * GAME_UNIT_TO_PX;
     this.distanceTraveled = 0;
     this.alive = true;
@@ -3654,7 +3654,7 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
     if (this.useWIntent > 0.5) {
       if (!this.zedShadow && this.wCooldown <= 0) {
         let angle = this.qAngle * Math.PI;
-        let dist = 700 * GAME_UNIT_TO_PX;
+        let dist = 1200 * GAME_UNIT_TO_PX;
         let sx = this.x + Math.cos(angle) * dist;
         let sy = this.y + Math.sin(angle) * dist;
         this.zedShadow = new ZedShadow(this, sx, sy);
@@ -3821,7 +3821,7 @@ class ZedESlash {
     this.owner = owner;
     this.x = x;
     this.y = y;
-    this.radius = 290 * GAME_UNIT_TO_PX;
+    this.radius = 500 * GAME_UNIT_TO_PX;
     this.eLevel = eLevel;
     this.bonusAD = bonusAD;
     this.isShadow = isShadow;
@@ -4006,7 +4006,7 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
           let dx = target.x - this.x;
           let dy = target.y - this.y;
           let dist = Math.hypot(dx, dy);
-          let dashDist = Math.min(dist, 625 * GAME_UNIT_TO_PX);
+          let dashDist = Math.min(dist, 1200 * GAME_UNIT_TO_PX);
           let dashAngle = Math.atan2(dy, dx);
           this.rShadow = new ZedRShadow(this, this.x, this.y);
           this.rUntargetable = true;
@@ -4499,7 +4499,7 @@ if (this.isZed) {
   // W: Cast shadow as soon as off cooldown, swap if available
   if (!this.zedShadow && this.wCooldown <= 0) {
     let angle = this.qAngle * Math.PI;
-    let dist = 700 * GAME_UNIT_TO_PX;
+    let dist = 1200 * GAME_UNIT_TO_PX;
     let sx = this.x + Math.cos(angle) * dist;
     let sy = this.y + Math.sin(angle) * dist;
     this.zedShadow = new ZedShadow(this, sx, sy);
@@ -4552,7 +4552,7 @@ if (this.isZed) {
       let dx = target.x - this.x;
       let dy = target.y - this.y;
       let dist = Math.hypot(dx, dy);
-      let dashDist = Math.min(dist, 625 * GAME_UNIT_TO_PX);
+      let dashDist = Math.min(dist, 1200 * GAME_UNIT_TO_PX);
       let dashAngle = Math.atan2(dy, dx);
       this.rShadow = new ZedRShadow(this, this.x, this.y);
       this.rUntargetable = true;
