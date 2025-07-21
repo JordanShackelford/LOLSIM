@@ -1272,6 +1272,20 @@ class CaitlynAI {
       ctx.fillText('ULT!', this.x, this.y - CAITLYN_RADIUS - 60);
       ctx.restore();
     }
+    // In CaitlynAI.draw, draw R range indicator if R is off cooldown
+    if (this.rCooldown <= 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 3500 * GAME_UNIT_TO_PX, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffeb3b';
+      ctx.lineWidth = 6;
+      ctx.setLineDash([18, 12]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
   }
   // Calculate stats from items
   getBonusAD() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); }
