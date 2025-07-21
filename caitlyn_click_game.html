@@ -2731,8 +2731,8 @@ function gameLoop(timestamp) {
   // BFSword item state
   if (typeof window.bfsword === 'undefined') {
     window.bfsword = {
-      x: Math.random() * (CANVAS_WIDTH - 80) + 40,
-      y: Math.random() * (CANVAS_HEIGHT - 80) + 40,
+      x: CANVAS_WIDTH / 2,
+      y: CANVAS_HEIGHT / 2,
       pickedUp: false,
       sucking: false,
       targetCaitlyn: null,
