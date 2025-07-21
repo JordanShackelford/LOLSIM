@@ -1720,6 +1720,8 @@ class QProjectile {
         let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
         if (hitCount > 0 && !c.trapped) dmg *= Q_DAMAGE_FALLOFF;
         c.hp -= Math.round(dmg);
+        if (c.hp < 0) c.hp = 0;
+        if (c.hp === 0) c.alive = false;
         this.owner.damageDealt += Math.round(dmg);
         this.hitTargets.add(c);
         hitCount++;
@@ -1736,6 +1738,8 @@ class QProjectile {
         let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
         if (hitCount > 0) dmg *= Q_DAMAGE_FALLOFF;
         m.hp -= Math.round(dmg);
+        if (m.hp < 0) m.hp = 0;
+        if (m.hp === 0) m.alive = false;
         this.owner.damageDealt += Math.round(dmg);
         this.hitTargets.add(m);
         hitCount++;
