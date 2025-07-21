@@ -153,7 +153,7 @@ const Q_BASE_DAMAGE = 210; // Base damage at max rank
 
 // Trap constants
 const TRAP_CAP = 3;
-const TRAP_RECHARGE = 24; // seconds per trap
+const TRAP_RECHARGE = 0.1; // seconds per trap
 const TRAP_DURATION = 30; // seconds
 const TRAP_ARM_TIME = 1.1; // seconds
 const TRAP_TRIGGER_RADIUS_UNITS = 67.5;
@@ -706,9 +706,9 @@ class CaitlynAI {
     this.traps = this.traps.filter(trap => trap.alive && (performance.now() / 1000) < trap.expiresAt);
     // Place trap randomly if available and not too many active
     if (this.trapCharges > 0 && this.traps.length < TRAP_CAP && Math.random() < 0.01) {
-      // Only allow trap placement within 200 units of Caitlyn's current position
+      // Only allow trap placement within 40 units of Caitlyn's current position
       const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * 200;
+      const radius = Math.random() * 40; // max 40 units
       const tx = Math.max(20, Math.min(CANVAS_WIDTH - 20, this.x + Math.cos(angle) * radius));
       const ty = Math.max(20, Math.min(CANVAS_HEIGHT - 20, this.y + Math.sin(angle) * radius));
       this.traps.push(new Trap(this, tx, ty));
