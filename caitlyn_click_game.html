@@ -850,9 +850,9 @@ class CaitlynAI {
               const dist = Math.hypot(this.x - realTarget.x, this.y - realTarget.y);
               // Only reward if target is not a turret or nexus
               if (!(realTarget instanceof Turret) && realTarget !== nexuses[0] && realTarget !== nexuses[1]) {
-                // Bonus: up to +0.2 fitness per 100 units, capped at attack range
+                // Bonus: up to +2.0 fitness per 100 units, capped at attack range (10x original)
                 const maxRange = this.attackRange;
-                const bonus = Math.min(dist, maxRange) / maxRange * 0.2 * damage;
+                const bonus = Math.min(dist, maxRange) / maxRange * 2.0 * damage;
                 this.fitness += bonus;
               }
             }
