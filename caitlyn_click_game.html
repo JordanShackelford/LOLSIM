@@ -1920,14 +1920,22 @@ function pointInRotatedRect(px, py, cx, cy, w, h, angle) {
 function initCaitlyns(brain) {
   try {
     caitlyns = [];
+    const SPAWN_RADIUS = 120;
     for (let t = 0; t < NUM_TEAMS; ++t) {
       for (let i = 0; i < TEAM_SIZE; ++i) {
+        // Randomize spawn within a circle around base
+        const baseX = t === 0 ? 200 : CANVAS_WIDTH - 200;
+        const baseY = t === 0 ? CANVAS_HEIGHT - 200 : 200;
+        const angle = Math.random() * 2 * Math.PI;
+        const radius = Math.random() * SPAWN_RADIUS;
+        const x = baseX + Math.cos(angle) * radius;
+        const y = baseY + Math.sin(angle) * radius;
         let c = new CaitlynAI(
-          t === 0 ? 200 : CANVAS_WIDTH - 200, // x
-          t === 0 ? CANVAS_HEIGHT - 200 : 200, // y
-          TEAM_COLORS[t], // color
-          t, // team
-          brain ? brain.slice() : undefined // brain
+          x,
+          y,
+          TEAM_COLORS[t],
+          t,
+          brain ? brain.slice() : undefined
         );
         caitlyns.push(c);
       }
