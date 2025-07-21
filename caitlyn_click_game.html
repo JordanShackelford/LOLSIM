@@ -2210,7 +2210,7 @@ class Turret {
     }
     // Apply damage when projectile reaches target
     for (const p of turretProjectiles) {
-      if (p.turret === this && p.alive && p.target && !p.target.isZed && Math.hypot(p.x - p.target.x, p.y - p.target.y) < 8) {
+      if (p.turret === this && p.alive && p.target && !p.target.isZed && p.target.team !== this.team && Math.hypot(p.x - p.target.x, p.y - p.target.y) < 8) {
         if (p.target.hp > 0) p.target.hp -= 180;
         p.alive = false;
       }
