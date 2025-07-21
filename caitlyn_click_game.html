@@ -4639,6 +4639,74 @@ window.showPlayerGold = false;
 // Ensure this is at the top-level, not inside any function:
 const TEMPORAL_FRAMES = 8;
 
+// --- Add Edit Mode Button to UI ---
+const editModeBtn = document.createElement('button');
+editModeBtn.textContent = 'Edit Mode: OFF';
+editModeBtn.style.marginTop = '8px';
+let editMode = false;
+editModeBtn.onclick = () => {
+  editMode = !editMode;
+  editModeBtn.textContent = editMode ? 'Edit Mode: ON' : 'Edit Mode: OFF';
+};
+document.getElementById('ui').appendChild(editModeBtn);
+
+// --- Turret Drag Logic ---
+let draggingTurret = null;
+let dragOffsetX = 0, dragOffsetY = 0;
+canvas.addEventListener('mousedown', e => {
+  if (!editMode) return;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  for (const t of turrets) {
+    if (Math.hypot(mouseX - t.x, mouseY - t.y) < 32) {
+      draggingTurret = t;
+      dragOffsetX = mouseX - t.x;
+      dragOffsetY = mouseY - t.y;
+      break;
+    }
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  if (!editMode || !draggingTurret) return;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  draggingTurret.x = Math.max(0, Math.min(CANVAS_WIDTH, mouseX - dragOffsetX));
+  draggingTurret.y = Math.max(0, Math.min(CANVAS_HEIGHT, mouseY - dragOffsetY));
+});
+canvas.addEventListener('mouseup', e => {
+  if (!editMode || !draggingTurret) return;
+  draggingTurret = null;
+  // Save turret positions to localStorage
+  const turretData = turrets.map(t => ({ x: t.x, y: t.y, team: t.team }));
+  localStorage.setItem('turretPositions', JSON.stringify(turretData));
+});
+canvas.addEventListener('mouseleave', e => {
+  if (!editMode || !draggingTurret) return;
+  draggingTurret = null;
+});
+
+// --- Load turret positions from localStorage if available ---
+function loadTurretPositions() {
+  const data = localStorage.getItem('turretPositions');
+  if (!data) return;
+  try {
+    const turretData = JSON.parse(data);
+    if (Array.isArray(turretData) && turretData.length === turrets.length) {
+      for (let i = 0; i < turrets.length; ++i) {
+        turrets[i].x = turretData[i].x;
+        turrets[i].y = turretData[i].y;
+      }
+    }
+  } catch (e) { console.error('Failed to load turret positions:', e); }
+}
+// Call after turrets are created
+// ... existing code ...
+// In main() and after turrets are created/reset:
+loadTurretPositions();
+// ... existing code ...
+
 </script>
 </body>
 </html>
