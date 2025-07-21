@@ -260,50 +260,54 @@ class Projectile {
 
 // Basic attack projectile animation class
 class BasicProjectile {
-  constructor(x0, y0, x1, y1, color, onHit, isHeadshot) {
+  constructor(x0, y0, x1, y1, color, onHit, isHeadshot, targetRef) {
+    this.x = x0;
+    this.y = y0;
     this.x0 = x0; this.y0 = y0;
     this.x1 = x1; this.y1 = y1;
-    this.t = 0; // 0 to 1
     this.color = color;
     this.alive = true;
     this.onHit = onHit;
     this.isHeadshot = isHeadshot;
+    this.targetRef = targetRef; // pass the target object reference
+    this.speed = isHeadshot ? 1800 : 1200; // px/sec
   }
   update(dt) {
-    this.t += dt * (this.isHeadshot ? 3 : 2); // headshot projectiles are faster
-    if (this.t >= 1) {
+    if (!this.alive) return;
+    // Move toward target's current position if available
+    let tx = this.x1, ty = this.y1;
+    if (this.targetRef && this.targetRef.x !== undefined && this.targetRef.y !== undefined) {
+      tx = this.targetRef.x;
+      ty = this.targetRef.y;
+    }
+    const dx = tx - this.x;
+    const dy = ty - this.y;
+    const dist = Math.hypot(dx, dy);
+    const move = Math.min(this.speed * dt, dist);
+    if (dist > 0) {
+      this.x += (dx / dist) * move;
+      this.y += (dy / dist) * move;
+    }
+    // Hit if within 10px of target
+    if (dist < 10) {
       this.alive = false;
       if (this.onHit) this.onHit();
     }
   }
   draw() {
-    const x = this.x0 + (this.x1 - this.x0) * this.t;
-    const y = this.y0 + (this.y1 - this.y0) * this.t;
     ctx.save();
-    
-    // Draw bullet trail (fainter and thinner)
     ctx.globalAlpha = 0.12;
     ctx.strokeStyle = this.color;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
-    ctx.lineTo(x, y);
+    ctx.moveTo(this.x0, this.y0);
+    ctx.lineTo(this.x, this.y);
     ctx.stroke();
-    
-    // Draw bullet (smaller and less saturated)
     ctx.globalAlpha = 0.7;
     ctx.beginPath();
-    ctx.arc(x, y, this.isHeadshot ? 4 : 2.5, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, this.isHeadshot ? 4 : 2.5, 0, Math.PI * 2);
     ctx.fillStyle = this.isHeadshot ? '#d44' : '#bbb';
     ctx.fill();
-    
-    // Remove bullet tip for less flash
-    // const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
-    // ctx.beginPath();
-    // ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
-    // ctx.fillStyle = '#fff';
-    // ctx.fill();
-    
     ctx.restore();
   }
 }
@@ -798,7 +802,7 @@ class CaitlynAI {
             } else {
               spawnDamageParticles(realTarget.x, realTarget.y, damage);
             }
-          }, isHeadshot));
+          }, isHeadshot, target));
         }
         this.pendingAttack = null;
       }
