@@ -1233,6 +1233,35 @@ class CaitlynAI {
     } catch (e) {
       console.error('Exception in CaitlynAI.draw:', e, this, new Error().stack);
     }
+    // In CaitlynAI.draw, add R channeling visual
+    if (this.rChanneling && this.rTarget && this.rTarget.hp > 0) {
+      // Draw thick, animated line from Caitlyn to target
+      ctx.save();
+      ctx.strokeStyle = '#ffeb3b';
+      ctx.lineWidth = 10;
+      ctx.globalAlpha = 0.7 + 0.3 * Math.sin(performance.now() / 100);
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.rTarget.x, this.rTarget.y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff';
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.rTarget.x, this.rTarget.y);
+      ctx.stroke();
+      ctx.restore();
+      // Draw floating 'ULT!' label above Caitlyn
+      ctx.save();
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillStyle = '#ffeb3b';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 6;
+      ctx.fillText('ULT!', this.x, this.y - CAITLYN_RADIUS - 60);
+      ctx.restore();
+    }
   }
   // Calculate stats from items
   getBonusAD() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); }
@@ -3095,14 +3124,17 @@ class UltProjectile {
   }
   draw() {
     ctx.save();
-    ctx.globalAlpha = 0.95;
+    ctx.globalAlpha = 0.98;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, 12, 0, Math.PI * 2);
-    ctx.fillStyle = '#ff1744';
+    ctx.arc(this.x, this.y, 32, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffeb3b';
     ctx.shadowColor = '#fff';
-    ctx.shadowBlur = 24;
+    ctx.shadowBlur = 48;
     ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#ff1744';
+    ctx.stroke();
     ctx.restore();
   }
 }
