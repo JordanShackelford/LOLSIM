@@ -3411,14 +3411,28 @@ CaitlynAI.prototype.draw = function() {
     ctx.setLineDash([]);
     ctx.restore();
     if (this.dead) return;
-    // Draw Zed sprite
+    // Draw Zed sprite or fallback
     const SPRITE_SIZE = 64;
     let drawX = this.x - SPRITE_SIZE / 2;
     let drawY = this.y - SPRITE_SIZE / 2;
     ctx.save();
     ctx.shadowColor = '#00ff00';
     ctx.shadowBlur = 25;
-    ctx.drawImage(zedImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
+    if (zedImgLoaded) {
+      ctx.drawImage(zedImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
+    } else {
+      // Fallback: draw green circle with 'Z'
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, SPRITE_SIZE/2, 0, Math.PI * 2);
+      ctx.fillStyle = '#00ff00';
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.font = 'bold 36px monospace';
+      ctx.fillStyle = '#222';
+      ctx.textAlign = 'center';
+      ctx.fillText('Z', this.x, this.y + 12);
+    }
     ctx.shadowBlur = 0;
     ctx.restore();
     // Draw speech bubble/thought if needed
