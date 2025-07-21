@@ -907,7 +907,7 @@ class CaitlynAI {
   draw() {
     if (this.hp <= 0 && !this.dead) return;
     // Draw healthbar
-    drawHealthbar(this.x, this.y - CAITLYN_RADIUS - 24, 44, 7, this.hp, CAITLYN_BASE_HP + this.getBonusHP());
+    drawHealthbar(this.x, this.y - CAITLYN_RADIUS - 40, 44, 7, this.hp, CAITLYN_BASE_HP + this.getBonusHP());
     // Draw attack range circle
     ctx.save();
     ctx.beginPath();
