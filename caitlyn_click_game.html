@@ -2396,29 +2396,8 @@ uiDiv.appendChild(unzoomBtn);
 let cameraX = 0, cameraY = 0, cameraZoom = 1;
 
 function gameLoop(timestamp) {
-  // --- Ensure debugOverlay is always initialized at the very start ---
-  let debugOverlay = document.getElementById('debugOverlay');
-  if (!debugOverlay) {
-    debugOverlay = document.createElement('div');
-    debugOverlay.id = 'debugOverlay';
-    debugOverlay.style.position = 'absolute';
-    debugOverlay.style.top = '10px';
-    debugOverlay.style.right = '10px';
-    debugOverlay.style.background = 'rgba(0,0,0,0.7)';
-    debugOverlay.style.color = '#0f0';
-    debugOverlay.style.font = '14px monospace';
-    debugOverlay.style.padding = '8px 12px';
-    debugOverlay.style.zIndex = 1000;
-    document.body.appendChild(debugOverlay);
-  }
-  console.log('GAMELOOP ENTERED');
-  console.log('LOOP DEBUG:', {
-    generation,
-    caitlyns: caitlyns.map(c => ({hp: c.hp, dead: c.dead, x: c.x, y: c.y})),
-    generationStartTime,
-    lastTime,
-    justReset
-  });
+  // --- Removed debugOverlay initialization and debug logs ---
+  // (debugOverlay and console.log lines removed)
   try {
     if (justReset) {
       justReset = false;
@@ -2755,14 +2734,11 @@ function gameLoop(timestamp) {
 
   // --- Draw static debug circle in gameLoop ---
   // At the start of gameLoop drawing section, add:
-  ctx.save();
-  ctx.globalAlpha = 1;
-  ctx.beginPath();
-  ctx.arc(100, 100, 30, 0, Math.PI * 2);
-  ctx.fillStyle = '#00ff00';
-  ctx.fill();
-  ctx.restore();
-  // --- End static debug circle ---
+  // Remove static green debug circle in gameLoop:
+  //   ctx.save(); ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(100, 100, 30, 0, Math.PI * 2); ctx.fillStyle = '#00ff00'; ctx.fill(); ctx.restore();
+  // Remove projectiles text and window._projectileDebug:
+  //   if (window._projectileDebug && debugOverlay) { ... }
+  // ... existing code ...
 
   // --- Add debug overlay div to UI ---
   // REMOVE the following block:
@@ -3387,17 +3363,7 @@ class UltProjectile {
 // --- End UltProjectile ---
 
 // --- Add test bullet button to UI ---
-const testBulletBtn = document.createElement('button');
-testBulletBtn.textContent = 'Spawn Test Bullet';
-testBulletBtn.style.marginTop = '10px';
-testBulletBtn.onclick = () => {
-  basicProjectiles.push(new BasicProjectile(
-    CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2,
-    CANVAS_WIDTH / 2 + 200, CANVAS_HEIGHT / 2,
-    '#ff1744', null, false, null
-  ));
-};
-uiDiv.appendChild(testBulletBtn);
+// (Deleted: const testBulletBtn = document.createElement('button'); ... uiDiv.appendChild(testBulletBtn);)
 // --- End test bullet button ---
 
 // Load Zed sprite
