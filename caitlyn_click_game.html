@@ -1596,33 +1596,33 @@ Ability.drawProjectile = function(x, y, color, type) {
   ctx.globalAlpha = 1;
 };
 BasicProjectile.prototype.draw = function() {
-  const x = this.x0 + (this.x1 - this.x0) * this.t;
-  const y = this.y0 + (this.y1 - this.y0) * this.t;
+  if (!window._projectileDebug) window._projectileDebug = [];
+  window._projectileDebug.push({x: this.x, y: this.y});
   ctx.save();
-  
-  // Draw bullet trail (fainter and thinner)
-  ctx.globalAlpha = 0.12;
-  ctx.strokeStyle = this.color;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(this.x0 + (this.x1 - this.x0) * (this.t - 0.1), this.y0 + (this.y1 - this.y0) * (this.t - 0.1));
-  ctx.lineTo(x, y);
-  ctx.stroke();
-  
-  // Draw bullet (smaller and less saturated)
+  // Draw a thick, bright trail
   ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = '#ff1744';
+  ctx.lineWidth = 8;
   ctx.beginPath();
-  ctx.arc(x, y, this.isHeadshot ? 4 : 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = this.isHeadshot ? '#d44' : '#bbb';
+  ctx.moveTo(this.x0, this.y0);
+  ctx.lineTo(this.x, this.y);
+  ctx.stroke();
+  // Draw a large, solid bullet with black outline
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(this.x, this.y, this.isHeadshot ? 16 : 12, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff1744';
   ctx.fill();
-  
-  // Remove bullet tip for less flash
-  // const angle = Math.atan2(this.y1 - this.y0, this.x1 - this.x0);
-  // ctx.beginPath();
-  // ctx.arc(x + Math.cos(angle) * 8, y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
-  // ctx.fillStyle = '#fff';
-  // ctx.fill();
-  
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#000';
+  ctx.stroke();
+  // Draw a debug marker
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+  ctx.strokeStyle = '#00ff00';
+  ctx.lineWidth = 2;
+  ctx.stroke();
   ctx.restore();
 };
 // In the game loop, restore bush drawing:
