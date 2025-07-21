@@ -782,22 +782,21 @@ class CaitlynAI {
       if (this.windupTimer <= 0 && this.pendingAttack) {
         const { target, damage, isHeadshot } = this.pendingAttack;
         if (target && target.hp > 0) {
+          const targetId = target instanceof Minion ? target.id : null;
           basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
-            target.hp -= damage;
+            let realTarget = target;
+            if (targetId) {
+              realTarget = minions.find(m => m.id === targetId) || target;
+            }
+            realTarget.hp -= damage;
             this.damageDealt += damage;
-            if (target instanceof Turret) this.turretDamage += damage;
-            if (target === nexuses[0] || target === nexuses[1]) this.nexusDamage += damage;
+            if (realTarget instanceof Turret) this.turretDamage += damage;
+            if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
             // Enhanced particle effects for damage
-            if (target instanceof Minion) {
-              spawnDamageParticles(target.x, target.y, damage);
-              console.log(`MINION DAMAGE: Caitlyn (team ${this.team}) deals ${damage} damage to ${target.type} minion. HP: ${target.hp}/${target.baseHp}`);
+            if (realTarget instanceof Minion) {
+              spawnDamageParticles(realTarget.x, realTarget.y, damage);
             } else {
-              spawnDamageParticles(target.x, target.y, damage);
-              console.log(
-                `ATTACK (on hit): Caitlyn (team ${this.team}) at (${this.x.toFixed(1)},${this.y.toFixed(1)}) attacks ` +
-                `Caitlyn (team ${target.team}) at (${target.x.toFixed(1)},${target.y.toFixed(1)}) for ${damage} damage. ` +
-                `Target HP after: ${target.hp}`
-              );
+              spawnDamageParticles(realTarget.x, realTarget.y, damage);
             }
           }, isHeadshot));
         }
@@ -1736,7 +1735,9 @@ function getMinionScaling(minionType, gameMinutes) {
 
 // Minion class refactor
 class Minion {
+  static nextId = 1;
   constructor(team, lane, type, spawnTime) {
+    this.id = Minion.nextId++;
     this.team = team;
     this.lane = lane;
     this.type = type;
