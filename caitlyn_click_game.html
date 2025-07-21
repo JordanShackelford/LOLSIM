@@ -1620,6 +1620,7 @@ function updateTeamMetricsChart() {
             m.avgFitness[team] = teamCaitlyns.length ? teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length : 0;
           }
         }
+        console.log('Graphing avgFitness for gen', i, 'team', t, ':', m.avgFitness[t]);
         return m.avgFitness[t];
       }),
       borderColor: TEAM_COLORS[t],
@@ -2660,10 +2661,12 @@ function gameLoop(timestamp) {
         teamAvgRank[t] = fitnessToRank(avgFitness);
       }
       if (!window.generationCaitlyns) window.generationCaitlyns = [];
-      window.generationCaitlyns.push([
+      const genCaitlyns = [
         caitlyns.filter(c => c.team === 0).map(c => ({...c, fitness: c.fitness})),
         caitlyns.filter(c => c.team === 1).map(c => ({...c, fitness: c.fitness}))
-      ]);
+      ];
+      console.log('Storing generationCaitlyns:', genCaitlyns.map(team => team.map(c => c.fitness)));
+      window.generationCaitlyns.push(genCaitlyns);
       teamMetricsHistory.push({
         generation,
         wins: teamWins.slice(),
@@ -4716,6 +4719,37 @@ function loadTurretPositions() {
     }
   } catch (e) { console.error('Failed to load turret positions:', e); }
 }
+// ... existing code ...
+
+// --- Global debug log string ---
+window._debugLog = '';
+function appendDebugLog(msg) {
+  window._debugLog += msg + '\n';
+}
+// ... existing code ...
+// Add Download Debug Log button to UI
+const downloadLogBtn = document.createElement('button');
+downloadLogBtn.textContent = 'Download Debug Log';
+downloadLogBtn.style.marginTop = '8px';
+downloadLogBtn.onclick = () => {
+  const blob = new Blob([window._debugLog], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'debug_log.txt';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+};
+document.getElementById('ui').appendChild(downloadLogBtn);
+// ... existing code ...
+// In the code that logs storing generationCaitlyns:
+console.log('Storing generationCaitlyns:', genCaitlyns.map(team => team.map(c => c.fitness)));
+appendDebugLog('Storing generationCaitlyns: ' + JSON.stringify(genCaitlyns.map(team => team.map(c => c.fitness))));
+// ... existing code ...
+// In the code that logs graphing avgFitness:
+console.log('Graphing avgFitness for gen', i, 'team', t, ':', m.avgFitness[t]);
+appendDebugLog('Graphing avgFitness for gen ' + i + ' team ' + t + ': ' + m.avgFitness[t]);
 // ... existing code ...
 
 </script>
