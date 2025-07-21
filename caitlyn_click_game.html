@@ -1894,23 +1894,28 @@ function pointInRotatedRect(px, py, cx, cy, w, h, angle) {
 }
 
 function initCaitlyns(brain) {
-  caitlyns = [];
-  for (let t = 0; t < NUM_TEAMS; ++t) {
-    for (let i = 0; i < TEAM_SIZE; ++i) {
-      let c = new CaitlynAI(
-        t === 0 ? 200 : CANVAS_WIDTH - 200, // x
-        t === 0 ? CANVAS_HEIGHT - 200 : 200, // y
-        TEAM_COLORS[t], // color
-        t, // team
-        brain ? brain.slice() : undefined // brain
-      );
-      caitlyns.push(c);
+  try {
+    caitlyns = [];
+    for (let t = 0; t < NUM_TEAMS; ++t) {
+      for (let i = 0; i < TEAM_SIZE; ++i) {
+        let c = new CaitlynAI(
+          t === 0 ? 200 : CANVAS_WIDTH - 200, // x
+          t === 0 ? CANVAS_HEIGHT - 200 : 200, // y
+          TEAM_COLORS[t], // color
+          t, // team
+          brain ? brain.slice() : undefined // brain
+        );
+        caitlyns.push(c);
+      }
     }
+    // Add neutral Zed
+    let zed = new CaitlynAI(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, '#00ff00', -1, brain ? brain.slice() : undefined);
+    zed.isZed = true;
+    caitlyns.push(zed);
+  } catch (e) {
+    console.error('Exception in initCaitlyns:', e, e && e.stack ? e.stack : new Error().stack);
+    alert('Error initializing Caitlyns: ' + e);
   }
-  // Add neutral Zed
-  let zed = new CaitlynAI(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, '#00ff00', -1, brain ? brain.slice() : undefined);
-  zed.isZed = true;
-  caitlyns.push(zed);
 }
 
 // Minion scaling per minute
@@ -2380,6 +2385,21 @@ uiDiv.appendChild(unzoomBtn);
 let cameraX = 0, cameraY = 0, cameraZoom = 1;
 
 function gameLoop(timestamp) {
+  // --- Ensure debugOverlay is always initialized at the very start ---
+  let debugOverlay = document.getElementById('debugOverlay');
+  if (!debugOverlay) {
+    debugOverlay = document.createElement('div');
+    debugOverlay.id = 'debugOverlay';
+    debugOverlay.style.position = 'absolute';
+    debugOverlay.style.top = '10px';
+    debugOverlay.style.right = '10px';
+    debugOverlay.style.background = 'rgba(0,0,0,0.7)';
+    debugOverlay.style.color = '#0f0';
+    debugOverlay.style.font = '14px monospace';
+    debugOverlay.style.padding = '8px 12px';
+    debugOverlay.style.zIndex = 1000;
+    document.body.appendChild(debugOverlay);
+  }
   console.log('GAMELOOP ENTERED');
   console.log('LOOP DEBUG:', {
     generation,
@@ -2734,20 +2754,21 @@ function gameLoop(timestamp) {
   // --- End static debug circle ---
 
   // --- Add debug overlay div to UI ---
-  let debugOverlay = document.getElementById('debugOverlay');
-  if (!debugOverlay) {
-    debugOverlay = document.createElement('div');
-    debugOverlay.id = 'debugOverlay';
-    debugOverlay.style.position = 'absolute';
-    debugOverlay.style.top = '10px';
-    debugOverlay.style.right = '10px';
-    debugOverlay.style.background = 'rgba(0,0,0,0.7)';
-    debugOverlay.style.color = '#0f0';
-    debugOverlay.style.font = '14px monospace';
-    debugOverlay.style.padding = '8px 12px';
-    debugOverlay.style.zIndex = 1000;
-    document.body.appendChild(debugOverlay);
-  }
+  // REMOVE the following block:
+  // let debugOverlay = document.getElementById('debugOverlay');
+  // if (!debugOverlay) {
+  //   debugOverlay = document.createElement('div');
+  //   debugOverlay.id = 'debugOverlay';
+  //   debugOverlay.style.position = 'absolute';
+  //   debugOverlay.style.top = '10px';
+  //   debugOverlay.style.right = '10px';
+  //   debugOverlay.style.background = 'rgba(0,0,0,0.7)';
+  //   debugOverlay.style.color = '#0f0';
+  //   debugOverlay.style.font = '14px monospace';
+  //   debugOverlay.style.padding = '8px 12px';
+  //   debugOverlay.style.zIndex = 1000;
+  //   document.body.appendChild(debugOverlay);
+  // }
   // --- End debug overlay div ---
 
   // --- In BasicProjectile.draw, update debug overlay with projectile positions ---
