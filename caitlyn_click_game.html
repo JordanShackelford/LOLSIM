@@ -346,8 +346,8 @@ function angleBetween(x1, y1, x2, y2) {
 
 // Simple feedforward neural net (2 hidden layers)
 function feedforward(inputs, weights) {
-  // 35 input, 24 hidden1, 12 hidden2, 9 output
-  const numInputs = 35, H1 = 24, H2 = 12, O = 9;
+  // 35 input, 24 hidden1, 12 hidden2, 11 output
+  const numInputs = 35, H1 = 24, H2 = 12, O = 11;
   let hidden1 = Array(H1).fill(0);
   let hidden2 = Array(H2).fill(0);
   let out = Array(O).fill(0);
@@ -466,6 +466,11 @@ class CaitlynAI {
     this.eActive = false;
     this.eSlowTimer = 0;
     this.eSlowedBy = null;
+    // In CaitlynAI constructor, add:
+    this.rCooldown = 0;
+    this.rChanneling = false;
+    this.rChannelTime = 0;
+    this.rTarget = null;
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
   static HIDDEN1 = 24;
@@ -614,7 +619,7 @@ class CaitlynAI {
         target = enemies[0];
       }
     }
-    const [moveX, moveY, attack, useQ, buy, recall, trap, useE, qAngle] = out;
+    const [moveX, moveY, attack, useQ, buy, recall, trap, useE, useR, qAngle, rTarget] = out;
     this.moveX = moveX;
     this.moveY = moveY;
     this.attackIntent = attack;
@@ -622,7 +627,9 @@ class CaitlynAI {
     this.recallIntent = recall;
     this.trapIntent = trap;
     this.useEIntent = useE;
+    this.useRIntent = useR;
     this.qAngle = qAngle; // Store Q angle for aiming
+    this.rTarget = rTarget; // Store rTarget for targeting
     
     // Debug logging for first few frames to understand Q casting behavior
     if (typeof generation !== 'undefined' && generation <= 300) {
@@ -635,7 +642,7 @@ class CaitlynAI {
       }
     }
     
-    return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, qAngle: qAngle };
+    return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, useR: useR > 0.5, rTarget, qAngle };
   }
 
   update(others, delta, projectiles, minions, turrets) {
@@ -765,7 +772,7 @@ class CaitlynAI {
     this.attackTimer -= delta;
     this.qTimer -= delta;
 
-    const { moveX, moveY, target, attack, useQ, buy, recall, trap, useE, qAngle } = this.decide(others, minions, turrets);
+    const { moveX, moveY, target, attack, useQ, buy, recall, trap, useE, useR, qAngle, rTarget } = this.decide(others, minions, turrets);
     let doAttack = attack;
     // Fallback: if not attacking but in range and cooldown is ready, force attack
     if (!doAttack && target && this.attackTimer <= 0) {
@@ -918,6 +925,32 @@ class CaitlynAI {
       this.x += Math.cos(angle) * -60;
       this.y += Math.sin(angle) * -60;
       this.eCooldown = 16; // fixed cooldown for now
+    }
+    // R cooldown
+    this.rCooldown -= delta;
+    if (this.rCooldown < 0) this.rCooldown = 0;
+    if (this.rChanneling) {
+      this.rChannelTime -= delta;
+      if (this.rChannelTime <= 0 && this.rTarget && this.rTarget.hp > 0) {
+        // Fire ult projectile
+        projectiles.push(new UltProjectile(this, this.x, this.y, this.rTarget));
+        this.rCooldown = 30; // 30s cooldown
+        this.rChanneling = false;
+        this.rTarget = null;
+      }
+      return; // Can't do anything else while channeling
+    }
+    // If useR and R is ready, find target and start channel
+    if (useR && this.rCooldown <= 0 && !this.rChanneling) {
+      // Find enemy Caitlyns in range (3500 units)
+      const enemiesInRange = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < 3500 * GAME_UNIT_TO_PX);
+      if (enemiesInRange.length > 0) {
+        // Select target based on rTarget output
+        const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
+        this.rTarget = enemiesInRange[idx];
+        this.rChanneling = true;
+        this.rChannelTime = 1.0; // 1s channel
+      }
     }
   }
 
@@ -2900,6 +2933,62 @@ trapImg.src = 'trap.png';
 let trapImgLoaded = false;
 trapImg.onload = () => { trapImgLoaded = true; };
 // --- End trap.png load ---
+
+// --- 3. Add UltProjectile class ---
+class UltProjectile {
+  constructor(owner, x, y, target) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.target = target;
+    this.speed = 4000 * GAME_UNIT_TO_PX;
+    this.alive = true;
+    this.hit = false;
+    // Calculate direction
+    const dx = target.x - x;
+    const dy = target.y - y;
+    const dist = Math.hypot(dx, dy);
+    this.dirX = dx / dist;
+    this.dirY = dy / dist;
+  }
+  update(delta) {
+    if (!this.alive) return;
+    this.x += this.dirX * this.speed * delta;
+    this.y += this.dirY * this.speed * delta;
+    // Check for body block (first enemy Caitlyn in path)
+    for (const c of caitlyns) {
+      if (c.team !== this.owner.team && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < CAITLYN_RADIUS + 8) {
+        // Hit!
+        let dmg = 750 + 2.0 * CAITLYN_BASE_AD;
+        c.hp -= Math.round(dmg);
+        this.owner.damageDealt += Math.round(dmg);
+        this.alive = false;
+        this.hit = true;
+        // Reward for hitting with R
+        this.owner.fitness = (this.owner.fitness || 0) + 100;
+        // Flash effect
+        c.flashColor = '#fff';
+        c.flashTimer = 0.25;
+        break;
+      }
+    }
+    // Remove if out of range
+    if (Math.hypot(this.x - this.owner.x, this.y - this.owner.y) > 4000 * GAME_UNIT_TO_PX) this.alive = false;
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff1744';
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 24;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+// --- End UltProjectile ---
 
 </script>
 </body>
