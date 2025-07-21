@@ -1286,6 +1286,50 @@ class CaitlynAI {
       ctx.globalAlpha = 1;
       ctx.restore();
     }
+    // In CaitlynAI.draw, add a speech bubble above head showing what they're 'thinking'
+    let thought = '';
+    if (this.dead) {
+      thought = '...';
+    } else if (this.rChanneling) {
+      thought = 'Channeling R!';
+    } else if (this.rCooldown <= 0) {
+      thought = 'Ult Ready!';
+    } else if (this.qActive || this.qWindup > 0) {
+      thought = 'Casting Q';
+    } else if (this.attackIntent > 0.5) {
+      thought = 'Attacking';
+    } else if (this.trapIntent > 0.5) {
+      thought = 'Placing Trap';
+    } else if (this.useEIntent > 0.5) {
+      thought = 'Using E';
+    } else if (this.moveX !== 0 || this.moveY !== 0) {
+      thought = 'Moving';
+    } else {
+      thought = '...';
+    }
+    if (thought) {
+      ctx.save();
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = 0.92;
+      // Draw speech bubble
+      const bubbleY = this.y - CAITLYN_RADIUS - 70;
+      const textWidth = ctx.measureText(thought).width;
+      ctx.beginPath();
+      ctx.ellipse(this.x, bubbleY, textWidth/2 + 16, 18, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#222';
+      ctx.globalAlpha = 1;
+      ctx.fillText(thought, this.x, bubbleY + 5);
+      ctx.restore();
+    }
   }
   // Calculate stats from items
   getBonusAD() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); }
