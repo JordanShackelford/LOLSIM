@@ -1786,7 +1786,8 @@ class Minion {
     if (!this.alive) return;
     // Scaling
     const scale = getMinionScaling(this.type, gameMinutes);
-    // this.hp = Math.min(this.hp, this.baseHp + scale.hp); // Removed clamping for proper damage
+    // (FIX APPLIED) Removed HP clamping so minions can be damaged and killed
+    // this.hp = Math.min(this.hp, this.baseHp + scale.hp);
     this.ad = this.baseAd + scale.ad;
     this.gold = this.baseGold + scale.gold;
     this.armor = MINION_TYPES[this.type].armor + (scale.armor || 0);
