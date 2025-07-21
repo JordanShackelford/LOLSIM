@@ -1418,9 +1418,9 @@ let savedBrain = null;
 
 // --- Flexible brain migration system ---
 function getRequiredBrainLength() {
-  // Use current architecture
-  const numInputs = 35, H1 = 24, H2 = 12, O = 11;
-  return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * O + O;
+  // AlphaStar-style: much deeper and wider
+  const numInputs = 64, H1 = 128, H2 = 128, H3 = 64, O = 11;
+  return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * H3 + H3 + H3 * O + O;
 }
 function migrateBrain(brain) {
   const required = getRequiredBrainLength();
@@ -3911,7 +3911,7 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
       if (this.eCooldown <= 0 && this.energy >= 50) {
         let eLevel = 5;
         let bonusAD = 0;
-        for (const c of caitlyns) { c._zedEHitThisCast = false; c._zedERefunded = false; }
+        for (const c of caitlyns) c._zedEHitThisCast = false; c._zedERefunded = false;
         this._zedEChampHit.clear();
         let eSlash = new ZedESlash(this, this.x, this.y, eLevel, bonusAD, false);
         eSlash.alive = true;
