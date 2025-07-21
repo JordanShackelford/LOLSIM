@@ -827,9 +827,15 @@ class CaitlynAI {
             if (targetId) {
               realTarget = minions.find(m => m.id === targetId) || target;
             }
+            if (realTarget instanceof Minion) {
+              console.log(`Minion ${realTarget.id} damaged: HP before=${realTarget.hp}, damage=${damage}`);
+            }
             realTarget.hp -= damage;
             if (realTarget.hp < 0) realTarget.hp = 0;
             if (realTarget.hp === 0 && realTarget instanceof Minion) realTarget.alive = false;
+            if (realTarget instanceof Minion) {
+              console.log(`Minion ${realTarget.id} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
+            }
             this.damageDealt += damage;
             if (realTarget instanceof Turret) this.turretDamage += damage;
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
@@ -1789,9 +1795,11 @@ class QProjectile {
       if (pointInRotatedRect(m.x, m.y, this.x, this.y, w, 1, this.angle)) {
         let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
         if (hitCount > 0) dmg *= Q_DAMAGE_FALLOFF;
+        console.log(`Q hit minion ${m.id}: HP before=${m.hp}, damage=${Math.round(dmg)}`);
         m.hp -= Math.round(dmg);
         if (m.hp < 0) m.hp = 0;
         if (m.hp === 0) m.alive = false;
+        console.log(`Q after: minion ${m.id} HP=${m.hp}, alive=${m.alive}`);
         this.owner.damageDealt += Math.round(dmg);
         this.hitTargets.add(m);
         hitCount++;
