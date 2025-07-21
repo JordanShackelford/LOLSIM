@@ -282,7 +282,7 @@ class BasicProjectile {
     this.onHit = onHit;
     this.isHeadshot = isHeadshot;
     this.targetRef = targetRef; // pass the target object reference
-    this.speed = 5000; // px/sec, much faster
+    this.speed = 1200; // px/sec, slower for visibility
   }
   update(dt) {
     if (!this.alive) return;
@@ -308,18 +308,21 @@ class BasicProjectile {
   }
   draw() {
     ctx.save();
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = this.color;
-    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = this.isHeadshot ? '#ffa500' : '#ffeb3b';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(this.x0, this.y0);
     ctx.lineTo(this.x, this.y);
     ctx.stroke();
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.95;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.isHeadshot ? 4 : 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = this.isHeadshot ? '#d44' : '#bbb';
+    ctx.arc(this.x, this.y, this.isHeadshot ? 8 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = this.isHeadshot ? '#ffa500' : '#ffeb3b';
+    ctx.shadowColor = this.isHeadshot ? '#ffa500' : '#ffeb3b';
+    ctx.shadowBlur = 10;
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.restore();
   }
 }
