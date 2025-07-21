@@ -283,9 +283,12 @@ class BasicProjectile {
     this.isHeadshot = isHeadshot;
     this.targetRef = targetRef; // pass the target object reference
     this.speed = 600; // px/sec, very slow for visibility
+    this.lifetime = 0;
+    this.minLifetime = 0.2; // always visible for at least 0.2s
   }
   update(dt) {
     if (!this.alive) return;
+    this.lifetime += dt;
     // Move toward target's current position if available
     let tx = this.x1, ty = this.y1;
     if (this.targetRef && this.targetRef.x !== undefined && this.targetRef.y !== undefined) {
@@ -300,8 +303,8 @@ class BasicProjectile {
       this.x += (dx / dist) * move;
       this.y += (dy / dist) * move;
     }
-    // Hit if within 20px of target
-    if (dist < 20) {
+    // Hit if within 20px of target, but only allow removal after minLifetime
+    if (dist < 20 && this.lifetime > this.minLifetime) {
       this.alive = false;
       if (this.onHit) this.onHit();
     }
@@ -324,6 +327,13 @@ class BasicProjectile {
     ctx.fill();
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#000';
+    ctx.stroke();
+    // Draw a debug marker
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
   }
