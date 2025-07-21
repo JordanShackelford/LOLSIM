@@ -310,6 +310,7 @@ class BasicProjectile {
     }
   }
   draw() {
+    console.log('Drawing BasicProjectile at', this.x, this.y);
     ctx.save();
     // Draw a thick, bright trail
     ctx.globalAlpha = 0.7;
@@ -2579,6 +2580,17 @@ function gameLoop(timestamp) {
   // At end of gameLoop, reset transform
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   // ... existing code ...
+
+  // --- Draw static debug circle in gameLoop ---
+  // At the start of gameLoop drawing section, add:
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(100, 100, 30, 0, Math.PI * 2);
+  ctx.fillStyle = '#00ff00';
+  ctx.fill();
+  ctx.restore();
+  // --- End static debug circle ---
 }
 
 // Static property for item icon images
