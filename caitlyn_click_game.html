@@ -1254,16 +1254,6 @@ class CaitlynAI {
       ctx.textAlign = 'center';
       ctx.fillText(this.team === 0 ? 'T1' : 'T2', this.x, this.y - CAITLYN_RADIUS - 18);
       ctx.restore();
-      // Add Show Gold button to UI
-      const showGoldBtn = document.createElement('button');
-      showGoldBtn.textContent = 'Show Gold';
-      showGoldBtn.style.marginTop = '8px';
-      showGoldBtn.onclick = () => {
-        window.showPlayerGold = !window.showPlayerGold;
-        showGoldBtn.textContent = window.showPlayerGold ? 'Hide Gold' : 'Show Gold';
-      };
-      document.getElementById('ui').appendChild(showGoldBtn);
-      window.showPlayerGold = false;
       // ... existing code ...
       // In CaitlynAI.draw, after drawing the team label above head:
       if (window.showPlayerGold) {
@@ -4561,6 +4551,17 @@ if (this.isZed) {
   }
 }
 // ... existing code ...
+
+// After document.getElementById('ui') is available, add:
+const showGoldBtn = document.createElement('button');
+showGoldBtn.textContent = 'Show Gold';
+showGoldBtn.style.marginTop = '8px';
+showGoldBtn.onclick = () => {
+  window.showPlayerGold = !window.showPlayerGold;
+  showGoldBtn.textContent = window.showPlayerGold ? 'Hide Gold' : 'Show Gold';
+};
+document.getElementById('ui').appendChild(showGoldBtn);
+window.showPlayerGold = false;
 
 </script>
 </body>
