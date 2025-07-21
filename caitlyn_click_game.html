@@ -1315,6 +1315,13 @@ function importBrain(file) {
   reader.readAsText(file);
 }
 
+function clearBrain() {
+  localStorage.removeItem(BRAIN_KEY);
+  savedBrain = null;
+  alert('Brain cleared! Reloading...');
+  location.reload();
+}
+
 // Add Export/Import buttons to UI
 const uiDiv = document.getElementById('ui');
 const exportBtn = document.createElement('button');
@@ -1333,6 +1340,10 @@ importBtn.onclick = () => {
   input.click();
 };
 uiDiv.appendChild(importBtn);
+const clearBtn = document.createElement('button');
+clearBtn.textContent = 'Clear Brain';
+clearBtn.onclick = clearBrain;
+uiDiv.appendChild(clearBtn);
 
 // Chart.js metrics for team stats
 let teamMetricsHistory = [];
@@ -1730,8 +1741,19 @@ function initCaitlyns(brain) {
       // Ensure each Caitlyn gets a unique brain with diversity
       let uniqueBrain;
       if (brain) {
-        // Use saved brain as base but add significant mutation for diversity
-        uniqueBrain = CaitlynAI.mutate(brain, 0.3 + Math.random() * 0.2); // 30-50% mutation
+        // Test if the saved brain produces extreme outputs
+        const testInputs = Array(35).fill(0);
+        const testOutput = feedforward(testInputs, brain);
+        const hasExtremeOutputs = testOutput.some(val => Math.abs(val) > 0.9);
+        
+        if (hasExtremeOutputs) {
+          // If brain is too extreme, start with random brain instead
+          console.log('Saved brain produces extreme outputs, using random brain for diversity');
+          uniqueBrain = CaitlynAI.randomBrain();
+        } else {
+          // Use saved brain as base but add significant mutation for diversity
+          uniqueBrain = CaitlynAI.mutate(brain, 0.4 + Math.random() * 0.3); // 40-70% mutation
+        }
       } else {
         // Start with completely random brain
         uniqueBrain = CaitlynAI.randomBrain();
