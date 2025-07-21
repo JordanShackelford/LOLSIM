@@ -3111,6 +3111,13 @@ trapImg.onload = () => { trapImgLoaded = true; };
 // --- 3. Add UltProjectile class ---
 class UltProjectile {
   constructor(owner, x, y, target) {
+    // Strict runtime check: only allow CaitlynAI targets
+    if (!target || !target.constructor || target.constructor.name !== 'CaitlynAI') {
+      if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'ERROR: UltProjectile target is not CaitlynAI!';
+      console.error('ERROR: UltProjectile target is not CaitlynAI!', target);
+      this.alive = false;
+      return;
+    }
     this.owner = owner;
     this.x = x;
     this.y = y;
@@ -3127,6 +3134,13 @@ class UltProjectile {
   }
   update(delta) {
     if (!this.alive) return;
+    // Runtime check: only update if target is CaitlynAI
+    if (!this.target || !this.target.constructor || this.target.constructor.name !== 'CaitlynAI') {
+      if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'ERROR: UltProjectile update: target is not CaitlynAI!';
+      console.error('ERROR: UltProjectile update: target is not CaitlynAI!', this.target);
+      this.alive = false;
+      return;
+    }
     this.x += this.dirX * this.speed * delta;
     this.y += this.dirY * this.speed * delta;
     // Check for body block (first enemy Caitlyn in path)
