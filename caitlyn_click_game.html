@@ -4681,8 +4681,13 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseup', e => {
   if (!editMode || !draggingTurret) return;
   draggingTurret = null;
-  // Save turret positions to localStorage
-  const turretData = turrets.map(t => ({ x: t.x, y: t.y, team: t.team }));
+  // Save turret positions to localStorage by team and index
+  const turretData = {};
+  let teamCounts = [0, 0];
+  for (const t of turrets) {
+    const idx = teamCounts[t.team]++;
+    turretData[`${t.team}-${idx}`] = { x: t.x, y: t.y };
+  }
   localStorage.setItem('turretPositions', JSON.stringify(turretData));
 });
 canvas.addEventListener('mouseleave', e => {
@@ -4696,18 +4701,19 @@ function loadTurretPositions() {
   if (!data) return;
   try {
     const turretData = JSON.parse(data);
-    if (Array.isArray(turretData) && turretData.length === turrets.length) {
-      for (let i = 0; i < turrets.length; ++i) {
-        turrets[i].x = turretData[i].x;
-        turrets[i].y = turretData[i].y;
+    if (turretData && typeof turretData === 'object') {
+      let teamCounts = [0, 0];
+      for (const t of turrets) {
+        const idx = teamCounts[t.team]++;
+        const key = `${t.team}-${idx}`;
+        if (turretData[key]) {
+          t.x = turretData[key].x;
+          t.y = turretData[key].y;
+        }
       }
     }
   } catch (e) { console.error('Failed to load turret positions:', e); }
 }
-// Call after turrets are created
-// ... existing code ...
-// In main() and after turrets are created/reset:
-loadTurretPositions();
 // ... existing code ...
 
 </script>
