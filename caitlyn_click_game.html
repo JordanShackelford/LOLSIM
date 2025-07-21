@@ -2118,6 +2118,25 @@ let lastTime = 0;
 let allowRespawn = true;
 let justReset = false;
 
+// Add Zoom to Best Caitlyn button
+const zoomBtn = document.createElement('button');
+zoomBtn.textContent = 'Zoom to Best Caitlyn';
+zoomBtn.style.marginTop = '10px';
+zoomBtn.onclick = () => {
+  window.zoomToBestCaitlyn = true;
+};
+uiDiv.appendChild(zoomBtn);
+const unzoomBtn = document.createElement('button');
+unzoomBtn.textContent = 'Exit Zoom';
+unzoomBtn.style.marginLeft = '10px';
+unzoomBtn.onclick = () => {
+  window.zoomToBestCaitlyn = false;
+};
+uiDiv.appendChild(unzoomBtn);
+
+// In gameLoop, before drawing, handle zoom and camera follow
+let cameraX = 0, cameraY = 0, cameraZoom = 1;
+
 function gameLoop(timestamp) {
   console.log('GAMELOOP ENTERED');
   console.log('LOOP DEBUG:', {
@@ -2429,6 +2448,24 @@ function gameLoop(timestamp) {
     console.error('Exception in gameLoop:', e, e && e.stack ? e.stack : new Error().stack);
   }
   requestAnimationFrame(gameLoop);
+
+  if (window.zoomToBestCaitlyn) {
+    const best = findBestCaitlyn();
+    if (best) {
+      cameraZoom = 10;
+      cameraX = best.x;
+      cameraY = best.y;
+    }
+  } else {
+    cameraZoom = 1;
+    cameraX = CANVAS_WIDTH / 2;
+    cameraY = CANVAS_HEIGHT / 2;
+  }
+  ctx.setTransform(cameraZoom, 0, 0, cameraZoom, CANVAS_WIDTH/2 - cameraX*cameraZoom, CANVAS_HEIGHT/2 - cameraY*cameraZoom);
+  // ... existing code ...
+  // At end of gameLoop, reset transform
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // ... existing code ...
 }
 
 // Static property for item icon images
