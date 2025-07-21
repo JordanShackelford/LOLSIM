@@ -1279,13 +1279,28 @@ let generationStartTime = null;
 const BRAIN_KEY = 'caitlyn_brain';
 let savedBrain = null;
 
+// --- Flexible brain migration system ---
+function getRequiredBrainLength() {
+  // Use current architecture
+  const numInputs = 35, H1 = 24, H2 = 12, O = 11;
+  return numInputs * H1 + H1 + H1 * H2 + H2 + H2 * O + O;
+}
+function migrateBrain(brain) {
+  const required = getRequiredBrainLength();
+  let migrated = brain.slice();
+  let changed = false;
+  while (migrated.length < required) { migrated.push(Math.random() * 2 - 1); changed = true; }
+  while (migrated.length > required) { migrated.pop(); changed = true; }
+  if (changed && typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'Brain migrated: ' + brain.length + ' → ' + required;
+  return migrated;
+}
+// On loadBrain, always migrate
 function loadBrain() {
   try {
     const data = localStorage.getItem(BRAIN_KEY);
     if (data) {
       let loaded = JSON.parse(data);
-      while (loaded.length < CaitlynAI.WEIGHTS_LEN) loaded.push(Math.random() * 2 - 1);
-      while (loaded.length > CaitlynAI.WEIGHTS_LEN) loaded.pop();
+      loaded = migrateBrain(loaded);
       savedBrain = loaded;
       console.log('Loaded saved brain from localStorage:', savedBrain);
       
@@ -1299,10 +1314,20 @@ function loadBrain() {
     console.log('No saved brain found, starting fresh.');
   }
 }
-
+// On saveBrain, always migrate
 function saveBrain(brain) {
-  localStorage.setItem(BRAIN_KEY, JSON.stringify(brain));
+  localStorage.setItem(BRAIN_KEY, JSON.stringify(migrateBrain(brain)));
 }
+// On mutation, always migrate
+CaitlynAI.mutate = function(brain, rate) {
+  let out = migrateBrain(brain);
+  return out.map(w => w + (Math.random() * 2 - 1) * rate);
+};
+// On randomBrain, always use required length
+CaitlynAI.randomBrain = function() {
+  return Array.from({ length: getRequiredBrainLength() }, () => Math.random() * 2 - 1);
+};
+// --- End flexible brain migration ---
 
 function exportBrain() {
   const data = localStorage.getItem(BRAIN_KEY);
