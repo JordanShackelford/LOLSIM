@@ -4489,6 +4489,90 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
   origCaitlynUpdateZedBrainRandom.call(this, others, delta, projectiles, minions, turrets);
 };
 
+// --- Force Zed to cast all abilities on cooldown (for debugging/visualization) ---
+if (this.isZed) {
+  // Q: Fire as soon as off cooldown
+  if (this.qTimer <= 0 && !this.qActive && this.qWindup <= 0) {
+    this.qAttempts++;
+    this.qWindup = 0.25;
+  }
+  // W: Cast shadow as soon as off cooldown, swap if available
+  if (!this.zedShadow && this.wCooldown <= 0) {
+    let angle = this.qAngle * Math.PI;
+    let dist = 700 * GAME_UNIT_TO_PX;
+    let sx = this.x + Math.cos(angle) * dist;
+    let sy = this.y + Math.sin(angle) * dist;
+    this.zedShadow = new ZedShadow(this, sx, sy);
+    this.wActive = true;
+    this.wSwapAvailable = true;
+    this.wTimer = 5.0;
+    this.wCooldown = 20;
+  } else if (this.zedShadow && this.wSwapAvailable) {
+    let dx = this.zedShadow.x - this.x;
+    let dy = this.zedShadow.y - this.y;
+    let dist = Math.hypot(dx, dy);
+    if (dist <= 1300 * GAME_UNIT_TO_PX) {
+      let tmpX = this.x, tmpY = this.y;
+      this.x = this.zedShadow.x;
+      this.y = this.zedShadow.y;
+      this.zedShadow.x = tmpX;
+      this.zedShadow.y = tmpY;
+      this.zedShadow.active = false;
+      this.zedShadow = null;
+      this.wActive = false;
+      this.wSwapAvailable = false;
+    }
+  }
+  // E: Cast as soon as off cooldown and enough energy
+  if (this.eCooldown <= 0 && this.energy >= 50) {
+    let eLevel = 5;
+    let bonusAD = 0;
+    for (const c of caitlyns) c._zedEHitThisCast = false; c._zedERefunded = false;
+    this._zedEChampHit.clear();
+    let eSlash = new ZedESlash(this, this.x, this.y, eLevel, bonusAD, false);
+    eSlash.alive = true;
+    projectiles.push(eSlash);
+    if (this.zedShadow && this.zedShadow.active) {
+      let shadowSlash = new ZedESlash(this, this.zedShadow.x, this.zedShadow.y, eLevel, bonusAD, true);
+      shadowSlash.alive = true;
+      projectiles.push(shadowSlash);
+    }
+    if (this._zedEChampHit.size > 0) {
+      this.eCooldown = Math.max(0, 5 - 2 * this._zedEChampHit.size);
+    } else {
+      this.eCooldown = 5;
+    }
+    this.energy -= 50;
+  }
+  // R: Cast as soon as off cooldown and not already active
+  if (!this.rMarkActive && this.rCooldown <= 0) {
+    let candidates = caitlyns.filter(c => c !== this && c.hp > 0 && c.team !== this.team);
+    if (candidates.length > 0) {
+      let target = candidates.reduce((best, c) => Math.hypot(c.x - this.x, c.y - this.y) < Math.hypot(best.x - this.x, best.y - this.y) ? c : best, candidates[0]);
+      let dx = target.x - this.x;
+      let dy = target.y - this.y;
+      let dist = Math.hypot(dx, dy);
+      let dashDist = Math.min(dist, 625 * GAME_UNIT_TO_PX);
+      let dashAngle = Math.atan2(dy, dx);
+      this.rShadow = new ZedRShadow(this, this.x, this.y);
+      this.rUntargetable = true;
+      this.rUntargetableTimer = 0.75;
+      this.rMarkTarget = target;
+      this.rMarkActive = true;
+      this.rMarkTimer = 3.0;
+      this.rMarkBaseDmg = [100, 200, 300][this.rLevel - 1] || 100;
+      this.rMarkDamage = 0;
+      setTimeout(() => {
+        this.x = target.x - Math.cos(dashAngle) * 40;
+        this.y = target.y - Math.sin(dashAngle) * 40;
+        this.rUntargetable = false;
+      }, 750);
+      this.rCooldown = [120, 100, 80][this.rLevel - 1] || 120;
+    }
+  }
+}
+// ... existing code ...
+
 </script>
 </body>
 </html>
