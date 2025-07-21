@@ -2292,6 +2292,13 @@ let netProjectiles = [];
 
 function main() {
   loadBrain();
+  // Initialize turrets at game start
+  turrets = [];
+  for (let team = 0; team < 2; ++team) {
+    for (const pos of TURRET_POSITIONS[team]) {
+      turrets.push(new Turret(pos.x, pos.y, team));
+    }
+  }
   initCaitlyns(savedBrain);
   requestAnimationFrame(gameLoop);
 }
