@@ -966,13 +966,13 @@ class CaitlynAI {
         // Select target based on rTarget output
         const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
         const candidate = enemiesInRange[idx];
-        // Strict check: only allow enemy Caitlyns
-        if (candidate && candidate.team !== this.team && candidate !== this) {
+        // Strict check: only allow enemy Caitlyns and must be instance of CaitlynAI
+        if (candidate && candidate.team !== this.team && candidate !== this && candidate.constructor && candidate.constructor.name === 'CaitlynAI') {
           this.rTarget = candidate;
           this.rChanneling = true;
           this.rChannelTime = 1.0; // 1s channel
         } else {
-          if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-enemy!';
+          if (typeof debugOverlay !== 'undefined') debugOverlay.textContent = 'R target error: tried to ult non-CaitlynAI!';
           this.rTarget = null;
           this.rChanneling = false;
         }
