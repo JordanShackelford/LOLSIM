@@ -270,7 +270,7 @@ class BasicProjectile {
     this.onHit = onHit;
     this.isHeadshot = isHeadshot;
     this.targetRef = targetRef; // pass the target object reference
-    this.speed = isHeadshot ? 1800 : 1200; // px/sec
+    this.speed = 5000; // px/sec, much faster
   }
   update(dt) {
     if (!this.alive) return;
@@ -288,8 +288,8 @@ class BasicProjectile {
       this.x += (dx / dist) * move;
       this.y += (dy / dist) * move;
     }
-    // Hit if within 10px of target
-    if (dist < 10) {
+    // Hit if within 20px of target
+    if (dist < 20) {
       this.alive = false;
       if (this.onHit) this.onHit();
     }
