@@ -163,64 +163,28 @@ const TRAP_MARK_DURATION = 2.5; // seconds
 const TRAP_HEADSHOT_BONUS = 1.2; // +120% headshot bonus
 const TRAP_HEADSHOT_RANGE_MULT = 2; // double range
 
-// --- Trap duration and cap by rank ---
-const TRAP_DURATIONS = [30, 35, 40, 45, 50]; // seconds
-const TRAP_CAPS = [3, 3, 4, 4, 5];
-function getTrapDuration(rank) { return TRAP_DURATIONS[Math.max(0, Math.min(4, rank-1))]; }
-function getTrapCap(rank) { return TRAP_CAPS[Math.max(0, Math.min(4, rank-1))]; }
-
-// --- Add trapRank to CaitlynAI (default 1, can be set for testing) ---
-CaitlynAI.prototype.trapRank = 1;
-
-// --- Update Trap class ---
+// Trap class (must be defined before CaitlynAI and any use)
 class Trap {
   constructor(owner, x, y) {
     this.owner = owner;
     this.x = x;
     this.y = y;
     this.placedAt = performance.now() / 1000;
-    this.armedAt = this.placedAt + 1.0; // 1s arm time
-    this.expiresAt = this.placedAt + getTrapDuration(owner.trapRank);
+    this.armedAt = this.placedAt + TRAP_ARM_TIME;
+    this.expiresAt = this.placedAt + TRAP_DURATION;
     this.armed = false;
     this.triggered = false;
     this.triggeredAt = null;
     this.target = null;
     this.alive = true;
-    this.visionEnd = this.placedAt + 1.0; // 1s vision on placement
-    this.trueSightEnd = null; // Set on trigger
-    this.headshotMarkEnd = null; // Set on trigger
   }
   update(now) {
     if (!this.armed && now >= this.armedAt) this.armed = true;
     if (this.triggered && now - this.triggeredAt > 0.5) this.alive = false; // remove after short delay
     if (now >= this.expiresAt) this.alive = false;
-    // End true sight after 3s
-    if (this.trueSightEnd && now >= this.trueSightEnd) this.trueSightEnd = null;
-    // End headshot mark after 1.8s
-    if (this.headshotMarkEnd && now >= this.headshotMarkEnd) this.headshotMarkEnd = null;
   }
   draw() {
     ctx.save();
-    // Show vision radius on placement
-    const now = performance.now() / 1000;
-    if (now < this.visionEnd) {
-      ctx.globalAlpha = 0.18;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, 150, 0, Math.PI * 2);
-      ctx.fillStyle = '#00eaff';
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-    // Show true sight radius on trigger
-    if (this.trueSightEnd && now < this.trueSightEnd) {
-      ctx.globalAlpha = 0.22;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, 150, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffeb3b';
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-    // Show trap (armed/unarmed)
     if (trapImgLoaded) {
       ctx.globalAlpha = this.armed ? 0.8 : 0.4;
       const size = 24;
@@ -246,30 +210,6 @@ class Trap {
   }
 }
 
-// --- Trap queue system in CaitlynAI ---
-CaitlynAI.prototype.placeTrap = function(x, y) {
-  if (!this.traps) this.traps = [];
-  // Remove oldest if at cap
-  const cap = getTrapCap(this.trapRank);
-  if (this.traps.length >= cap) {
-    const oldest = this.traps.shift();
-    if (oldest) oldest.alive = false;
-  }
-  const trap = new Trap(this, x, y);
-  this.traps.push(trap);
-  minions.push(trap); // or add to global trap list if you have one
-  return trap;
-};
-
-// --- Trap trigger logic (in Trap or collision code) ---
-// When an enemy steps on an armed trap:
-// trap.triggered = true; trap.triggeredAt = now; trap.trueSightEnd = now + 3.0; trap.headshotMarkEnd = now + 1.8;
-// Apply root: enemy.rootedUntil = now + 1.5;
-// Mark for headshot: enemy.trapMarkedBy = this.owner; enemy.trapMarkTimer = 1.8; enemy.trapMarkRange = 1300;
-
-// --- In CaitlynAI attack logic, allow headshot at 1300 range if trapMarkTimer > 0 ---
-// if (target.trapMarkedBy === this && target.trapMarkTimer > 0 && dist <= 1300) { ... allow headshot ... }
-// ... existing code ...
 
 // 2. Update inBrush(x, y) to check if a point is inside any bush
 function inBrush(x, y) {
