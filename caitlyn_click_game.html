@@ -44,9 +44,9 @@ const CAITLYN_MOVE_SPEED = 325 * GAME_UNIT_TO_PX; // 325 units/sec
 const CAITLYN_PROJECTILE_SPEED = 2500 * GAME_UNIT_TO_PX; // 2500 units/sec
 
 // Q ability constants (in game units)
-const Q_RANGE = 1250 * GAME_UNIT_TO_PX; // 1250 units
-const Q_WIDTH = 60 * GAME_UNIT_TO_PX; // 60 units
-const Q_WIDTH_EXPANDED = 90 * GAME_UNIT_TO_PX; // 90 units
+const Q_RANGE = 1300 * GAME_UNIT_TO_PX; // 1300 units (true to real game)
+const Q_WIDTH = 120 * GAME_UNIT_TO_PX; // 120 units (true to real game)
+const Q_WIDTH_EXPANDED = 180 * GAME_UNIT_TO_PX; // 180 units (true to real game)
 const Q_SPEED = 2200 * GAME_UNIT_TO_PX; // 2200 units/sec
 
 // Trap constants (in game units)
@@ -820,6 +820,14 @@ class CaitlynAI {
 
     // Q windup/cast logic
     if (this.qWindup > 0) {
+      // --- Q cast cancel: if move or other ability issued, cancel Q ---
+      if (Math.abs(moveX) > 0.2 || Math.abs(moveY) > 0.2 || useE > 0.5 || useR > 0.5 || trap > 0.5 || recall > 0.5) {
+        this.qWindup = 0; // Cancel Q
+        this.qActive = false;
+        this.qProjectile = null;
+        // Optionally: play cancel animation or sound
+        return;
+      }
       this.qWindup -= delta;
       if (this.qWindup <= 0) {
         // Fire Q projectile using learned angle
@@ -828,6 +836,21 @@ class CaitlynAI {
         this.qProjectile = new QProjectile(this, this.x, this.y, angle);
         projectiles.push(this.qProjectile);
         this.qTimer = Q_COOLDOWN;
+      }
+      // --- Q pre-fire line indicator ---
+      if (typeof ctx !== 'undefined') {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#00bcd4';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([12, 10]);
+        let angle = this.qAngle * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x + Math.cos(angle) * Q_RANGE, this.y + Math.sin(angle) * Q_RANGE);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
       }
       return; // Can't auto or cast other abilities during Q windup
     }
@@ -1831,7 +1854,7 @@ class QProjectile {
       let w = (hitCount === 0) ? Q_WIDTH : Q_WIDTH_EXPANDED;
       if (hitCount > 0) this.width = Q_WIDTH_EXPANDED;
       if (pointInRotatedRect(c.x, c.y, this.x, this.y, w, 1, this.angle)) {
-        let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
+        let dmg = Q_BASE_DAMAGE + ((CAITLYN_BASE_AD + this.owner.getBonusAD()) * Q_DAMAGE_RATIO);
         if (hitCount > 0 && !c.trapped) dmg *= Q_DAMAGE_FALLOFF;
         c.hp -= Math.round(dmg);
         if (c.hp < 0) c.hp = 0;
@@ -1849,7 +1872,7 @@ class QProjectile {
       if (m.hp <= 0 || m.team === this.owner.team || this.hitTargets.has(m)) continue;
       let w = (hitCount === 0) ? Q_WIDTH : Q_WIDTH_EXPANDED;
       if (pointInRotatedRect(m.x, m.y, this.x, this.y, w, 1, this.angle)) {
-        let dmg = Q_BASE_DAMAGE + (CAITLYN_BASE_AD * Q_DAMAGE_RATIO);
+        let dmg = Q_BASE_DAMAGE + ((CAITLYN_BASE_AD + this.owner.getBonusAD()) * Q_DAMAGE_RATIO);
         if (hitCount > 0) dmg *= Q_DAMAGE_FALLOFF;
         console.log(`Q hit minion ${m.id}: HP before=${m.hp}, damage=${Math.round(dmg)}`);
         m.hp -= Math.round(dmg);
