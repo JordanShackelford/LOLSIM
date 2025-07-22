@@ -956,8 +956,9 @@ class CaitlynAI {
           moveVecY = dy / len;
         }
       }
-      this.x += (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
-      this.y += (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
       // Clamp
       if (!isFinite(this.x) || !isFinite(this.y)) {
         this.x = Math.max(0, Math.min(CANVAS_WIDTH, isFinite(this.x) ? this.x : 400));
@@ -3935,8 +3936,10 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
           moveVecY = dy / len;
         }
       }
-      this.x += (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
-      this.y += (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
+      // Clamp
       if (!isFinite(this.x) || !isFinite(this.y)) {
         this.x = Math.max(0, Math.min(CANVAS_WIDTH, isFinite(this.x) ? this.x : 400));
         this.y = Math.max(0, Math.min(CANVAS_HEIGHT, isFinite(this.y) ? this.y : 300));
@@ -4826,6 +4829,60 @@ appendDebugLog('Storing generationCaitlyns: ' + JSON.stringify(genCaitlyns.map(t
 // In the code that logs graphing avgFitness:
 console.log('Graphing avgFitness for gen', i, 'team', t, ':', m.avgFitness[t]);
 appendDebugLog('Graphing avgFitness for gen ' + i + ' team ' + t + ': ' + m.avgFitness[t]);
+// ... existing code ...
+
+// --- Map collision polygons (walls and river) ---
+const MAP_WALLS = [
+  // Bottom left wall
+  [
+    {x: 0, y: CANVAS_HEIGHT * 0.85},
+    {x: CANVAS_WIDTH * 0.18, y: CANVAS_HEIGHT * 0.85},
+    {x: CANVAS_WIDTH * 0.18, y: CANVAS_HEIGHT},
+    {x: 0, y: CANVAS_HEIGHT}
+  ],
+  // Top right wall
+  [
+    {x: CANVAS_WIDTH * 0.82, y: 0},
+    {x: CANVAS_WIDTH, y: 0},
+    {x: CANVAS_WIDTH, y: CANVAS_HEIGHT * 0.15},
+    {x: CANVAS_WIDTH * 0.82, y: CANVAS_HEIGHT * 0.15}
+  ]
+];
+const MAP_RIVER = [
+  {x: 0, y: CANVAS_HEIGHT * 0.7},
+  {x: CANVAS_WIDTH * 0.3, y: CANVAS_HEIGHT},
+  {x: CANVAS_WIDTH, y: CANVAS_HEIGHT * 0.3},
+  {x: CANVAS_WIDTH * 0.7, y: 0}
+];
+
+function pointInPolygon(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    const intersect = ((yi > y) !== (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function isBlockedMap(x, y) {
+  // Check walls
+  for (const wall of MAP_WALLS) if (pointInPolygon(x, y, wall)) return true;
+  // Check river (optional: make river impassable, or just slow)
+  // Uncomment next line to make river impassable:
+  // if (pointInPolygon(x, y, MAP_RIVER)) return true;
+  return false;
+}
+// ... existing code ...
+// --- Patch unit movement to block entry into walls/river ---
+// In CaitlynAI.update and Minion.update, after calculating new x/y:
+// Instead of directly setting this.x/this.y, check isBlockedMap(newX, newY)
+// If blocked, do not move (or slide along edge for advanced logic)
+// Example for CaitlynAI:
+// let newX = this.x + ...; let newY = this.y + ...;
+// if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
+// else { /* Optionally: slide along edge or stop */ }
 // ... existing code ...
 
 </script>
