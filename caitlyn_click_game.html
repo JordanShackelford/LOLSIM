@@ -4925,6 +4925,15 @@ function isBlockedMap(x, y) {
 // else { /* Optionally: slide along edge or stop */ }
 // ... existing code ...
 
+// TEMPORARY DEBUG: Disable all map collision to test movement
+function isBlockedMap(x, y) {
+  return false; // <-- Disable collision for debugging
+  // Original logic below:
+  // for (const wall of MAP_WALLS) if (pointInPolygon(x, y, wall)) return true;
+  // if (pointInPolygon(x, y, MAP_RIVER)) return true;
+  // return false;
+}
+
 </script>
 </body>
 </html>
