@@ -4831,21 +4831,22 @@ console.log('Graphing avgFitness for gen', i, 'team', t, ':', m.avgFitness[t]);
 appendDebugLog('Graphing avgFitness for gen ' + i + ' team ' + t + ': ' + m.avgFitness[t]);
 // ... existing code ...
 
-// --- Map collision polygons (walls and river) ---
+// --- Improved Map collision polygons (walls and river) ---
+// Shrink and reposition to avoid spawn overlap and better match Wild Rift
 const MAP_WALLS = [
-  // Bottom left wall
+  // Bottom left wall (smaller, away from Nexus)
   [
-    {x: 0, y: CANVAS_HEIGHT * 0.85},
-    {x: CANVAS_WIDTH * 0.18, y: CANVAS_HEIGHT * 0.85},
-    {x: CANVAS_WIDTH * 0.18, y: CANVAS_HEIGHT},
+    {x: 0, y: CANVAS_HEIGHT * 0.93},
+    {x: CANVAS_WIDTH * 0.10, y: CANVAS_HEIGHT * 0.93},
+    {x: CANVAS_WIDTH * 0.10, y: CANVAS_HEIGHT},
     {x: 0, y: CANVAS_HEIGHT}
   ],
-  // Top right wall
+  // Top right wall (smaller, away from Nexus)
   [
-    {x: CANVAS_WIDTH * 0.82, y: 0},
+    {x: CANVAS_WIDTH * 0.90, y: 0},
     {x: CANVAS_WIDTH, y: 0},
-    {x: CANVAS_WIDTH, y: CANVAS_HEIGHT * 0.15},
-    {x: CANVAS_WIDTH * 0.82, y: CANVAS_HEIGHT * 0.15}
+    {x: CANVAS_WIDTH, y: CANVAS_HEIGHT * 0.07},
+    {x: CANVAS_WIDTH * 0.90, y: CANVAS_HEIGHT * 0.07}
   ]
 ];
 const MAP_RIVER = [
@@ -4854,6 +4855,45 @@ const MAP_RIVER = [
   {x: CANVAS_WIDTH, y: CANVAS_HEIGHT * 0.3},
   {x: CANVAS_WIDTH * 0.7, y: 0}
 ];
+
+// --- Debug overlay for blocked areas ---
+let showBlockedOverlay = false;
+const toggleBlockedBtn = document.createElement('button');
+toggleBlockedBtn.textContent = 'Show Blocked Areas';
+toggleBlockedBtn.style.marginTop = '8px';
+toggleBlockedBtn.onclick = () => {
+  showBlockedOverlay = !showBlockedOverlay;
+  toggleBlockedBtn.textContent = showBlockedOverlay ? 'Hide Blocked Areas' : 'Show Blocked Areas';
+};
+document.getElementById('ui').appendChild(toggleBlockedBtn);
+
+function drawBlockedOverlay(ctx) {
+  ctx.save();
+  // Walls
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#ff1744';
+  for (const wall of MAP_WALLS) {
+    ctx.beginPath();
+    ctx.moveTo(wall[0].x, wall[0].y);
+    for (let i = 1; i < wall.length; ++i) ctx.lineTo(wall[i].x, wall[i].y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // River (optional: blue overlay)
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#42a5f5';
+  ctx.beginPath();
+  ctx.moveTo(MAP_RIVER[0].x, MAP_RIVER[0].y);
+  for (let i = 1; i < MAP_RIVER.length; ++i) ctx.lineTo(MAP_RIVER[i].x, MAP_RIVER[i].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+// ... existing code ...
+// In the main game rendering loop, after drawMapOverlay(ctx):
+if (showBlockedOverlay) drawBlockedOverlay(ctx);
+// ... existing code ...
 
 function pointInPolygon(x, y, poly) {
   let inside = false;
