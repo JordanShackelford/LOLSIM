@@ -960,54 +960,34 @@ class CaitlynAI {
       this.attackTimer = this.attackDelay;
       // If attacking a minion, set lastHitBy
       if (target && target instanceof Minion) target.lastHitBy = this;
-      // --- Kiting improvement: set post-attack kite burst ---
-      this.kiteBurstTimer = 0.18; // 180ms burst after attack
-      if (target) {
-        const dx = this.x - target.x;
-        const dy = this.y - target.y;
-        const len = Math.hypot(dx, dy);
-        if (len > 1e-3) {
-          this.kiteBurstVec = { x: dx / len, y: dy / len };
-        } else {
-          this.kiteBurstVec = { x: 0, y: 0 };
-        }
-      } else {
-        this.kiteBurstVec = { x: 0, y: 0 };
-      }
       return;
     } else {
-      // Move if not in range, or attack is on cooldown
+      // --- Improved kiting logic ---
       let speed = this.moveSpeed * parseFloat(speedSlider.value);
       if (this.slowTimer > 0) speed *= E_SLOW_AMOUNT;
-      // --- Kiting improvement: apply post-attack burst movement ---
-      let moveVecX = moveX;
-      let moveVecY = moveY;
-      let burst = 0;
-      if (this.kiteBurstTimer && this.kiteBurstTimer > 0 && this.kiteBurstVec) {
-        burst = 1.5; // burst multiplier for kiting
-        moveVecX = this.kiteBurstVec.x;
-        moveVecY = this.kiteBurstVec.y;
-        this.kiteBurstTimer -= delta;
-        if (this.kiteBurstTimer <= 0) {
-          this.kiteBurstTimer = 0;
-        }
-      } else {
-        // If not bursting, use neural net move direction
-        this.kiteBurstTimer = 0;
-      }
-      // Reduce random jitter while kiting
-      const jitter = (burst > 0) ? 0.05 : 0.15;
-      if (target && burst === 0) {
+      let moveVecX = 0, moveVecY = 0;
+      if (target) {
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const len = Math.hypot(dx, dy);
-        if (len > 1e-3) {
+        if (this.attackTimer > 0 && len > 1e-3) {
+          // Move away from target while waiting for attack cooldown (kite)
+          moveVecX = -dx / len;
+          moveVecY = -dy / len;
+        } else if (len > 1e-3) {
+          // Move toward target if ready to attack
           moveVecX = dx / len;
           moveVecY = dy / len;
         }
+      } else {
+        // No target, use neural net output
+        moveVecX = moveX;
+        moveVecY = moveY;
       }
-      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * (1 + burst) * delta;
-      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * (1 + burst) * delta;
+      // Reduce random jitter for more purposeful movement
+      const jitter = 0.05;
+      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
       if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
       // Clamp
       if (!isFinite(this.x) || !isFinite(this.y)) {
@@ -4084,38 +4064,32 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
       }
       return;
     } else {
-      // Move if not in range, or attack is on cooldown
+      // --- Improved kiting logic ---
       let speed = this.moveSpeed * parseFloat(speedSlider.value);
       if (this.slowTimer > 0) speed *= E_SLOW_AMOUNT;
-      // --- Kiting improvement: apply post-attack burst movement ---
-      let moveVecX = moveX;
-      let moveVecY = moveY;
-      let burst = 0;
-      if (this.kiteBurstTimer && this.kiteBurstTimer > 0 && this.kiteBurstVec) {
-        burst = 1.5; // burst multiplier for kiting
-        moveVecX = this.kiteBurstVec.x;
-        moveVecY = this.kiteBurstVec.y;
-        this.kiteBurstTimer -= delta;
-        if (this.kiteBurstTimer <= 0) {
-          this.kiteBurstTimer = 0;
-        }
-      } else {
-        // If not bursting, use neural net move direction
-        this.kiteBurstTimer = 0;
-      }
-      // Reduce random jitter while kiting
-      const jitter = (burst > 0) ? 0.05 : 0.15;
-      if (target && burst === 0) {
+      let moveVecX = 0, moveVecY = 0;
+      if (target) {
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const len = Math.hypot(dx, dy);
-        if (len > 1e-3) {
+        if (this.attackTimer > 0 && len > 1e-3) {
+          // Move away from target while waiting for attack cooldown (kite)
+          moveVecX = -dx / len;
+          moveVecY = -dy / len;
+        } else if (len > 1e-3) {
+          // Move toward target if ready to attack
           moveVecX = dx / len;
           moveVecY = dy / len;
         }
+      } else {
+        // No target, use neural net output
+        moveVecX = moveX;
+        moveVecY = moveY;
       }
-      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * (1 + burst) * delta;
-      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * (1 + burst) * delta;
+      // Reduce random jitter for more purposeful movement
+      const jitter = 0.05;
+      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
       if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
       // Clamp
       if (!isFinite(this.x) || !isFinite(this.y)) {
