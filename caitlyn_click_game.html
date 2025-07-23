@@ -693,6 +693,7 @@ class CaitlynAI {
         this.y = NEXUS_POS[this.team].y;
         this.hp = CAITLYN_BASE_HP + this.getBonusHP();
         this.dead = false;
+        this.lastHitBy = null; // Reset lastHitBy on respawn
         // Copy the best Caitlyn's brain with small mutation
         const bestCaitlyn = findBestCaitlyn();
         if (bestCaitlyn && bestCaitlyn !== this) {
@@ -707,6 +708,10 @@ class CaitlynAI {
       return;
     }
     if (this.hp <= 0) {
+      // Award 300 gold to the last enemy Caitlyn who hit this one
+      if (this.lastHitBy && this.lastHitBy.team !== this.team) {
+        this.lastHitBy.gold += 300;
+      }
       // On death, set respawn timer to ceil(game time in seconds)
       const gameTime = (typeof generationStartTime === 'number' && lastTime) ? ((lastTime - generationStartTime) / 1000) : now;
       this.respawnTimer = Math.ceil(gameTime);
@@ -910,6 +915,9 @@ class CaitlynAI {
                 const bonus = Math.min(dist, maxRange) / maxRange * 2.0 * damage;
                 this.fitness += bonus;
               }
+            }
+            if (realTarget instanceof CaitlynAI && realTarget.team !== this.team) {
+              realTarget.lastHitBy = this;
             }
           }, isHeadshot, target, damage));
         }
