@@ -1052,7 +1052,6 @@ class CaitlynAI {
           this.rChanneling = true;
           this.rChannelTime = 3.0; // 3s channel (was 1.0)
         } else {
-          if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
           this.rTarget = null;
           this.rChanneling = false;
         }
@@ -2703,7 +2702,6 @@ function gameLoop(timestamp) {
     basicProjectiles.forEach(p => p.update(delta));
     basicProjectiles.forEach(p => p.draw());
     basicProjectiles = basicProjectiles.filter(p => p.alive);
-    if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'BasicProjectiles: ' + basicProjectiles.length;
     // Draw minions, turrets, nexuses, caitlyns
     // (already present above)
     // Now draw basic projectiles above all units
@@ -2962,24 +2960,10 @@ function gameLoop(timestamp) {
   // Remove static green debug circle in gameLoop:
   //   ctx.save(); ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(100, 100, 30, 0, Math.PI * 2); ctx.fillStyle = '#00ff00'; ctx.fill(); ctx.restore();
   // Remove projectiles text and window._projectileDebug:
-  //   if (window._projectileDebug && debugOverlay) { ... }
   // ... existing code ...
 
   // --- Add debug overlay div to UI ---
   // REMOVE the following block:
-  // let debugOverlay = document.getElementById('debugOverlay');
-  // if (!debugOverlay) {
-  //   debugOverlay = document.createElement('div');
-  //   debugOverlay.id = 'debugOverlay';
-  //   debugOverlay.style.position = 'absolute';
-  //   debugOverlay.style.top = '10px';
-  //   debugOverlay.style.right = '10px';
-  //   debugOverlay.style.background = 'rgba(0,0,0,0.7)';
-  //   debugOverlay.style.color = '#0f0';
-  //   debugOverlay.style.font = '14px monospace';
-  //   debugOverlay.style.padding = '8px 12px';
-  //   debugOverlay.style.zIndex = 1000;
-  //   document.body.appendChild(debugOverlay);
   // }
   // --- End debug overlay div ---
 
@@ -3015,11 +2999,8 @@ function gameLoop(timestamp) {
   // --- End projectile debug overlay ---
 
   // --- At the end of gameLoop, update the debug overlay with all projectile positions ---
-  if (window._projectileDebug && debugOverlay) {
     if (window._projectileDebug.length > 0) {
-      debugOverlay.textContent = 'Projectiles: ' + window._projectileDebug.map(p => `(${Math.round(p.x)},${Math.round(p.y)})`).join(' ');
     } else {
-      debugOverlay.textContent = 'Projectiles: (none)';
     }
     window._projectileDebug = [];
   }
@@ -3509,7 +3490,6 @@ class UltProjectile {
   constructor(owner, x, y, target) {
     // Strict runtime check: only allow CaitlynAI targets
     if (!target || !target.constructor || target.constructor.name !== 'CaitlynAI') {
-      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile target is not CaitlynAI!';
       console.error('ERROR: UltProjectile target is not CaitlynAI!', target);
       this.alive = false;
       return;
@@ -3532,7 +3512,6 @@ class UltProjectile {
     if (!this.alive) return;
     // Runtime check: only update if target is CaitlynAI
     if (!this.target || !this.target.constructor || this.target.constructor.name !== 'CaitlynAI') {
-      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile update: target is not CaitlynAI!';
       console.error('ERROR: UltProjectile update: target is not CaitlynAI!', this.target);
       this.alive = false;
       return;
