@@ -1056,6 +1056,10 @@ class CaitlynAI {
         }
       }
     }
+    // Auto-recall if gold >= 500, not dead, not recalling, not at base
+    if (!this.dead && !this.isRecalling && this.gold >= 500 && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) > NEXUS_RADIUS + 10) {
+      this.startRecall();
+    }
   }
 
   draw() {
