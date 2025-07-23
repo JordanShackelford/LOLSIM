@@ -726,12 +726,14 @@ class CaitlynAI {
         this.isRecalling = false;
         this.recallTimer = 0;
         this.tookDamage = false;
+        console.log(`Caitlyn (team ${this.team}) recall INTERRUPTED by damage at (${Math.round(this.x)},${Math.round(this.y)})`);
       } else if (this.recallTimer <= 0) {
         // Teleport to base
         this.x = NEXUS_POS[this.team].x;
         this.y = NEXUS_POS[this.team].y;
         this.isRecalling = false;
         this.canBuy = true;
+        console.log(`Caitlyn (team ${this.team}) recall COMPLETED, teleported to base with gold: ${this.gold}`);
       }
       return;
     }
@@ -1450,6 +1452,7 @@ class CaitlynAI {
       this.isRecalling = true;
       this.recallTimer = 5.0;
       this.tookDamage = false;
+      console.log(`Caitlyn (team ${this.team}) started recall at (${Math.round(this.x)},${Math.round(this.y)}) with gold: ${this.gold}`);
     }
   }
 }
