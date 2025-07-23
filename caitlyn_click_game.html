@@ -275,7 +275,7 @@ class Projectile {
 
 // Basic attack projectile animation class
 class BasicProjectile {
-  constructor(x0, y0, x1, y1, color, onHit, isHeadshot, targetRef) {
+  constructor(x0, y0, x1, y1, color, onHit, isHeadshot, targetRef, damage) {
     this.x = x0;
     this.y = y0;
     this.x0 = x0; this.y0 = y0;
@@ -288,6 +288,7 @@ class BasicProjectile {
     this.speed = 600; // px/sec, very slow for visibility
     this.lifetime = 0;
     this.minLifetime = 0.2; // always visible for at least 0.2s
+    this.damage = damage !== undefined ? damage : 1; // <-- NEW: store damage
   }
   update(dt) {
     if (!this.alive) return;
@@ -910,7 +911,7 @@ class CaitlynAI {
                 this.fitness += bonus;
               }
             }
-          }, isHeadshot, target));
+          }, isHeadshot, target, damage));
         }
         this.pendingAttack = null;
       }
@@ -2713,7 +2714,7 @@ function gameLoop(timestamp) {
     minions.forEach(m => {
       projectiles.forEach(p => {
         if (m.hp > 0 && m.alive && p.alive && Math.hypot(m.x - p.x, m.y - p.y) < m.radius + p.radius) {
-          m.hp--;
+          m.hp -= (p.damage !== undefined ? p.damage : 1);
           p.alive = false;
           damageDone = true;
           m.flashColor = '#fff';
@@ -3958,7 +3959,7 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
             if (target.hp < 0) target.hp = 0;
             if (target.hp === 0 && target instanceof Minion) target.alive = false;
             this.damageDealt += damage;
-          }, false, target));
+          }, false, target, damage));
         }
         this.pendingAttack = null;
       }
