@@ -411,14 +411,23 @@ class CaitlynAI {
     this.y = y;
     this.color = color;
     this.team = team;
+    // --- Robust state reset ---
+    this.dead = false;
+    this.isRecalling = false;
+    this.windupTimer = 0;
+    this.trapRootTimer = 0;
+    this.rChanneling = false;
+    this.trapped = false;
+    this.qWindup = 0;
+    this.qActive = false;
+    this.recallTimer = 0;
+    this.rChannelTime = 0;
+    this.rTarget = null;
+    this.pendingAttack = null;
+    // --- End robust state reset ---
     this.hp = CAITLYN_BASE_HP;
+    this.dead = false;
     this.attackTimer = 0;
-    this.qTimer = 0;
-    this.attackAttempts = 0;
-    this.qAttempts = 0;
-    this.basicAttackCount = 0;
-    this.headshotReady = false;
-    this.targetIdx = -1;
     this.brain = brain || CaitlynAI.randomBrain();
     this.attackSpeed = CAITLYN_BASE_AS;
     this.attackDelay = 1 / this.attackSpeed;
@@ -821,7 +830,7 @@ class CaitlynAI {
     const { moveX, moveY, target, attack, useQ, buy, recall, trap, useE, useR, qAngle, rTarget } = this.decide(others, minions, turrets);
     let doAttack = attack;
     // Fallback: if not attacking but in range and cooldown is ready, force attack
-    if (!doAttack && target && this.attackTimer <= 0) {
+    if ((!doAttack || !attack) && target && this.attackTimer <= 0) {
       const dist = Math.hypot(target.x - this.x, target.y - this.y);
       let attackRange = this.attackRange;
       if (target.trapped || target.netted) attackRange = HEADSHOT_RANGE;
@@ -951,16 +960,44 @@ class CaitlynAI {
       this.attackTimer = this.attackDelay;
       // If attacking a minion, set lastHitBy
       if (target && target instanceof Minion) target.lastHitBy = this;
+      // --- Kiting improvement: set post-attack kite burst ---
+      this.kiteBurstTimer = 0.18; // 180ms burst after attack
+      if (target) {
+        const dx = this.x - target.x;
+        const dy = this.y - target.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-3) {
+          this.kiteBurstVec = { x: dx / len, y: dy / len };
+        } else {
+          this.kiteBurstVec = { x: 0, y: 0 };
+        }
+      } else {
+        this.kiteBurstVec = { x: 0, y: 0 };
+      }
       return;
     } else {
       // Move if not in range, or attack is on cooldown
       let speed = this.moveSpeed * parseFloat(speedSlider.value);
       if (this.slowTimer > 0) speed *= E_SLOW_AMOUNT;
-      // Add small random jitter to break symmetry
-      const jitter = 0.2;
+      // --- Kiting improvement: apply post-attack burst movement ---
       let moveVecX = moveX;
       let moveVecY = moveY;
-      if (target) {
+      let burst = 0;
+      if (this.kiteBurstTimer && this.kiteBurstTimer > 0 && this.kiteBurstVec) {
+        burst = 1.5; // burst multiplier for kiting
+        moveVecX = this.kiteBurstVec.x;
+        moveVecY = this.kiteBurstVec.y;
+        this.kiteBurstTimer -= delta;
+        if (this.kiteBurstTimer <= 0) {
+          this.kiteBurstTimer = 0;
+        }
+      } else {
+        // If not bursting, use neural net move direction
+        this.kiteBurstTimer = 0;
+      }
+      // Reduce random jitter while kiting
+      const jitter = (burst > 0) ? 0.05 : 0.15;
+      if (target && burst === 0) {
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const len = Math.hypot(dx, dy);
@@ -969,8 +1006,8 @@ class CaitlynAI {
           moveVecY = dy / len;
         }
       }
-      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
-      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
+      let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * (1 + burst) * delta;
+      let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * (1 + burst) * delta;
       if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
       // Clamp
       if (!isFinite(this.x) || !isFinite(this.y)) {
@@ -1052,6 +1089,7 @@ class CaitlynAI {
           this.rChanneling = true;
           this.rChannelTime = 3.0; // 3s channel (was 1.0)
         } else {
+          if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
           this.rTarget = null;
           this.rChanneling = false;
         }
@@ -1060,6 +1098,49 @@ class CaitlynAI {
     // Auto-recall if gold >= 500, not dead, not recalling, not at base
     if (!this.dead && !this.isRecalling && this.gold >= 500 && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) > NEXUS_RADIUS + 10) {
       this.startRecall();
+    }
+    // --- Failsafe: Always decrement windupTimer and trapRootTimer, and forcibly reset if stuck ---
+    if (this.windupTimer > 0) {
+      this.windupTimer -= delta;
+      if (this.windupTimer > 2) this.windupTimer = 0; // Failsafe: never stuck >2s
+    }
+    if (this.trapRootTimer > 0) {
+      this.trapRootTimer -= delta;
+      if (this.trapRootTimer > 2) this.trapRootTimer = 0; // Failsafe: never stuck >2s
+    }
+    // --- Failsafe: forcibly reset isRecalling and rChanneling if stuck ---
+    if (this.isRecalling) {
+      if (!this._recallStartTime) this._recallStartTime = now;
+      if (now - this._recallStartTime > 10) {
+        this.isRecalling = false;
+        this.recallTimer = 0;
+        this._recallStartTime = null;
+      }
+    } else {
+      this._recallStartTime = null;
+    }
+    if (this.rChanneling) {
+      if (!this._rChannelStartTime) this._rChannelStartTime = now;
+      if (now - this._rChannelStartTime > 10) {
+        this.rChanneling = false;
+        this.rChannelTime = 0;
+        this.rTarget = null;
+        this._rChannelStartTime = null;
+      }
+    } else {
+      this._rChannelStartTime = null;
+    }
+    // --- Hard failsafe: forcibly nudge Caitlyn if stuck for 5s ---
+    if (!this._lastNudgeTime) this._lastNudgeTime = now;
+    const nudgeDistMoved = Math.hypot(this.x - this.lastPosition.x, this.y - this.lastPosition.y);
+    if (nudgeDistMoved < 2 && now - this._lastNudgeTime > 5) {
+      // Nudge in a random direction
+      const angle = Math.random() * 2 * Math.PI;
+      this.x += Math.cos(angle) * 20;
+      this.y += Math.sin(angle) * 20;
+      this._lastNudgeTime = now;
+    } else if (nudgeDistMoved >= 2) {
+      this._lastNudgeTime = now;
     }
   }
 
@@ -2702,6 +2783,7 @@ function gameLoop(timestamp) {
     basicProjectiles.forEach(p => p.update(delta));
     basicProjectiles.forEach(p => p.draw());
     basicProjectiles = basicProjectiles.filter(p => p.alive);
+    if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'BasicProjectiles: ' + basicProjectiles.length;
     // Draw minions, turrets, nexuses, caitlyns
     // (already present above)
     // Now draw basic projectiles above all units
@@ -2960,10 +3042,24 @@ function gameLoop(timestamp) {
   // Remove static green debug circle in gameLoop:
   //   ctx.save(); ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(100, 100, 30, 0, Math.PI * 2); ctx.fillStyle = '#00ff00'; ctx.fill(); ctx.restore();
   // Remove projectiles text and window._projectileDebug:
+  //   if (window._projectileDebug && debugOverlay) { ... }
   // ... existing code ...
 
   // --- Add debug overlay div to UI ---
   // REMOVE the following block:
+  // let debugOverlay = document.getElementById('debugOverlay');
+  // if (!debugOverlay) {
+  //   debugOverlay = document.createElement('div');
+  //   debugOverlay.id = 'debugOverlay';
+  //   debugOverlay.style.position = 'absolute';
+  //   debugOverlay.style.top = '10px';
+  //   debugOverlay.style.right = '10px';
+  //   debugOverlay.style.background = 'rgba(0,0,0,0.7)';
+  //   debugOverlay.style.color = '#0f0';
+  //   debugOverlay.style.font = '14px monospace';
+  //   debugOverlay.style.padding = '8px 12px';
+  //   debugOverlay.style.zIndex = 1000;
+  //   document.body.appendChild(debugOverlay);
   // }
   // --- End debug overlay div ---
 
@@ -2999,8 +3095,11 @@ function gameLoop(timestamp) {
   // --- End projectile debug overlay ---
 
   // --- At the end of gameLoop, update the debug overlay with all projectile positions ---
+  if (window._projectileDebug && debugOverlay) {
     if (window._projectileDebug.length > 0) {
+      debugOverlay.textContent = 'Projectiles: ' + window._projectileDebug.map(p => `(${Math.round(p.x)},${Math.round(p.y)})`).join(' ');
     } else {
+      debugOverlay.textContent = 'Projectiles: (none)';
     }
     window._projectileDebug = [];
   }
@@ -3490,6 +3589,7 @@ class UltProjectile {
   constructor(owner, x, y, target) {
     // Strict runtime check: only allow CaitlynAI targets
     if (!target || !target.constructor || target.constructor.name !== 'CaitlynAI') {
+      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile target is not CaitlynAI!';
       console.error('ERROR: UltProjectile target is not CaitlynAI!', target);
       this.alive = false;
       return;
@@ -3512,6 +3612,7 @@ class UltProjectile {
     if (!this.alive) return;
     // Runtime check: only update if target is CaitlynAI
     if (!this.target || !this.target.constructor || this.target.constructor.name !== 'CaitlynAI') {
+      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile update: target is not CaitlynAI!';
       console.error('ERROR: UltProjectile update: target is not CaitlynAI!', this.target);
       this.alive = false;
       return;
