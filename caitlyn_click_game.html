@@ -2515,6 +2515,18 @@ let cameraX = 0, cameraY = 0, cameraZoom = 1;
 
 function gameLoop(timestamp) {
   try {
+    // --- DEBUG: Force all Caitlyns to move randomly ---
+    for (const c of caitlyns) {
+      if (c && typeof c === 'object' && !c.dead && !c.isRecalling) {
+        // Overwrite moveX/moveY with random direction
+        const angle = Math.random() * 2 * Math.PI;
+        c.moveX = Math.cos(angle);
+        c.moveY = Math.sin(angle);
+        // Log position and move vector
+        console.log(`Caitlyn at (${Math.round(c.x)},${Math.round(c.y)}) move=(${c.moveX.toFixed(2)},${c.moveY.toFixed(2)})`);
+      }
+    }
+    // ... existing code ...
     if (justReset) {
       justReset = false;
       // Always re-initialize Caitlyns (including Zed) on reset
