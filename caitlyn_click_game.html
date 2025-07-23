@@ -3633,6 +3633,15 @@ CaitlynAI.prototype.draw = function() {
       ctx.fillText(this.lastThought, this.x, bubbleY + 5);
       ctx.restore();
     }
+    // Draw debug overlay for Zed
+    ctx.save();
+    ctx.fillStyle = '#ff1744';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'black';
+    ctx.shadowBlur = 2;
+    ctx.fillText(`HP: ${this.hp} (${Math.round(this.x)},${Math.round(this.y)})`, this.x, this.y - CAITLYN_RADIUS - 60);
+    ctx.restore();
     return;
   }
   origCaitlynDraw.call(this);
@@ -3746,17 +3755,11 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
 // Patch CaitlynAI update to make Zed unkillable
 const origCaitlynUpdateUnkillable = CaitlynAI.prototype.update;
 CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
-  if (this.isZed) {
-    // Zed is unkillable: always keep at least 1 HP and never dead
-    this.hp = Math.max(this.hp, 1);
-    this.dead = false;
-    // Continue with Zed's ability and attack logic
-    origCaitlynUpdateUnkillable.call(this, others, delta, projectiles, minions, turrets);
-    this.hp = Math.max(this.hp, 1);
-    this.dead = false;
-    return;
-  }
   origCaitlynUpdateUnkillable.call(this, others, delta, projectiles, minions, turrets);
+  if (this.isZed) {
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+  }
 };
 
 // --- Zed Living Shadow (W) ---
@@ -4267,22 +4270,11 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
 
 const origCaitlynUpdateUnkillableAbsolute = CaitlynAI.prototype.update;
 CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turrets) {
-  if (this.isZed) {
-    // Zed is absolutely unkillable: always keep at least 1 HP and never dead
-    this.hp = Math.max(this.hp, 1);
-    this.dead = false;
-    // If dashing with R, also set untargetable
-    if (this.rUntargetable) {
-      this.hp = Math.max(this.hp, 1);
-      this.dead = false;
-    }
-    // Continue with Zed's ability and attack logic
-    origCaitlynUpdateUnkillableAbsolute.call(this, others, delta, projectiles, minions, turrets);
-    this.hp = Math.max(this.hp, 1);
-    this.dead = false;
-    return;
-  }
   origCaitlynUpdateUnkillableAbsolute.call(this, others, delta, projectiles, minions, turrets);
+  if (this.isZed) {
+    this.hp = Math.max(this.hp, 1);
+    this.dead = false;
+  }
 };
 
 // --- Zed Brain Persistence ---
