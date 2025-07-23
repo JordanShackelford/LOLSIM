@@ -23,6 +23,7 @@
   <label>Attack Bias: <input type="range" id="attackBias" min="-1" max="1" step="0.05" value="0" /></label><br />
   <label>Speed: <input type="range" id="speed" min="1" max="20" step="0.1" value="1.0" /></label><br />
   <button id="speed2000Btn" style="margin-left:8px;">2000x</button>
+  <button id="showADBtn" style="margin-left:8px;">Show AD</button>
   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
 </div>
 <div id="teamGraphUI"></div>
@@ -729,12 +730,11 @@ class CaitlynAI {
     // If at base and can buy, buy items if enough gold
     if (this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) < NEXUS_RADIUS + 10) {
       for (const item of ITEM_SHOP) {
-        if (this.gold >= item.cost && !this.items.includes(item)) {
+        while (this.gold >= item.cost) {
           this.gold -= item.cost;
           this.items.push(item);
           this.goldSpent += item.cost;
-          // Only buy one item per base visit for now
-          break;
+          // Allow buying multiple Long Swords per base visit
         }
       }
       this.canBuy = false;
@@ -1424,6 +1424,7 @@ class CaitlynAI {
     }
   }
   // Calculate stats from items
+  getBaseAD() { return CAITLYN_BASE_AD; }
   getBonusAD() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); }
   getBonusHP() { return this.items.reduce((s, it) => s + (it.hp || 0), 0); }
   getBonusMS() { return this.items.reduce((s, it) => s + (it.ms || 0), 0); }
@@ -1455,6 +1456,14 @@ speed2000Btn.onclick = () => {
   speedSlider.value = 2000;
 };
 speedSlider.parentNode.appendChild(speed2000Btn);
+
+// Show AD toggle
+let showAD = false;
+const showADBtn = document.getElementById('showADBtn');
+showADBtn.onclick = () => {
+  showAD = !showAD;
+  showADBtn.textContent = showAD ? 'Hide AD' : 'Show AD';
+};
 let statsDiv = document.getElementById('stats');
 
 let generation = 1;
@@ -2631,6 +2640,19 @@ function gameLoop(timestamp) {
       const moveY = c.cachedMove.y;
       c.update(caitlyns, delta, projectiles, minions, turrets);
       c.draw();
+      
+      // Draw AD above Caitlyn's head if toggle is enabled
+      if (showAD) {
+        const totalAD = c.getBaseAD() + c.getBonusAD();
+        ctx.save();
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 2;
+        ctx.fillText(`${totalAD} AD`, c.x, c.y - CAITLYN_RADIUS - 25);
+        ctx.restore();
+      }
     });
     projectiles.forEach(p => { p.update(delta); p.draw(); });
     projectiles = projectiles.filter(p => p.alive);
@@ -4933,6 +4955,17 @@ function isBlockedMap(x, y) {
   // if (pointInPolygon(x, y, MAP_RIVER)) return true;
   // return false;
 }
+
+// Add this after constants and before CaitlynAI class
+const ITEM_SHOP = [
+  {
+    name: 'Long Sword',
+    cost: 500,
+    ad: 12,
+    icon: 'bf sword.webp', // fallback to text if image not available
+    stackable: true
+  }
+];
 
 </script>
 </body>
