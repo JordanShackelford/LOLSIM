@@ -4754,9 +4754,10 @@ main = function() {
   loadZedBrain();
   origMain();
 };
-const origEndGeneration = initCaitlyns;
+// Save best Zed brain after each generation
+const origInitCaitlynsPatched = initCaitlyns;
 initCaitlyns = function(brain) {
-  origEndGeneration(brain);
+  origInitCaitlynsPatched(brain);
   // Save best Zed brain
   let bestZed = caitlyns.find(c => c.isZed);
   if (bestZed) saveZedBrain(bestZed.brain);
