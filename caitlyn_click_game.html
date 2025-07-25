@@ -2883,7 +2883,7 @@ function gameLoop(timestamp) {
       
       // Draw AD above Caitlyn's head if toggle is enabled
       if (showAD) {
-        const totalAD = c.getBaseAD() + c.getBonusAD();
+        const totalAD = c.getAD() + c.getBonusAD();
         ctx.save();
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 14px Arial';
