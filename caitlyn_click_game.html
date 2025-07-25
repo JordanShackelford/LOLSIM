@@ -144,7 +144,7 @@ const ITEM_SHOP = [
     name: 'Long Sword',
     cost: 500,
     ad: 12,
-    icon: 'bfsword.png', // use correct filename
+    icon: 'longsword.png', // use correct filename
     stackable: true
   }
 ];
@@ -3286,7 +3286,7 @@ function gameLoop(timestamp) {
 
   // --- BFSword item system ---
   const BFSWORD_AD = 40;
-  const BFSWORD_ICON = 'bfsword.png';
+  const BFSWORD_ICON = 'longsword.png';
   let bfswordImg = new Image();
   bfswordImg.src = BFSWORD_ICON;
   let bfswordImgLoaded = false;
@@ -3376,7 +3376,7 @@ function gameLoop(timestamp) {
   };
   // --- End BFSword item system ---
 
-  // Draw bfsword.png at the center of the screen (debug/test)
+  // Draw longsword.png at the center of the screen (debug/test)
   if (bfswordImgLoaded) {
     ctx.save();
     ctx.globalAlpha = 1;
