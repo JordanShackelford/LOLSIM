@@ -138,6 +138,17 @@ const CAITLYN_MR = 0;
 const CAITLYN_ATTACK_RANGE_UNITS = 650 * 2; // double original range
 const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
 
+// Item shop
+const ITEM_SHOP = [
+  {
+    name: 'Long Sword',
+    cost: 500,
+    ad: 12,
+    icon: 'bf sword.webp', // fallback to text if image not available
+    stackable: true
+  }
+];
+
 // Headshot constants
 const HEADSHOT_STACKS_NEEDED = 5;
 const HEADSHOT_STACKS_BRUSH = 4;
@@ -5345,17 +5356,6 @@ function isBlockedMap(x, y) {
   // if (pointInPolygon(x, y, MAP_RIVER)) return true;
   // return false;
 }
-
-// Add this after constants and before CaitlynAI class
-const ITEM_SHOP = [
-  {
-    name: 'Long Sword',
-    cost: 500,
-    ad: 12,
-    icon: 'bf sword.webp', // fallback to text if image not available
-    stackable: true
-  }
-];
 
 </script>
 </body>
