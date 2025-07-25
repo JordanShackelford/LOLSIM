@@ -1647,6 +1647,8 @@ class CaitlynAI {
       this.manaRegen += 0.14; // +0.7 per 5s
       this.levelUpEffect = 1.0; // for UI flash
     }
+    if (this.level > 18) this.level = 18;
+    if (this.xp > this.xpToNext[17]) this.xp = this.xpToNext[17];
   }
   spendMana(amount) {
     if (this.mana >= amount) { this.mana -= amount; return true; } return false;
