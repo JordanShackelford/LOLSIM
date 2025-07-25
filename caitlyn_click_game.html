@@ -5,14 +5,15 @@
 <title>Caitlyn AI Free For All with Abilities and Headshot</title>
 <style>
   body { margin: 0; overflow: hidden; background: #1e1e1e; color: white; font-family: sans-serif; }
-  canvas { display: block; margin: auto; background: #222; }
+  canvas { display: block; margin: 0 auto 0 auto; background: #222; position: relative; top: 20px; }
   #ui {
-    position: absolute;
-    top: 10px; left: 10px;
+    position: fixed;
+    top: 20px; left: 20px;
     background: rgba(0,0,0,0.6);
     padding: 10px;
     border-radius: 8px;
     max-width: 300px;
+    z-index: 10;
   }
 </style>
 </head>
@@ -906,11 +907,12 @@ class CaitlynAI {
             return;
           }
           const targetId = target instanceof Minion ? target.id : null;
-          basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
-            let realTarget = target;
-            if (targetId) {
-              realTarget = minions.find(m => m.id === targetId) || target;
-            }
+          // Apply damage immediately to ensure it always happens
+          let realTarget = target;
+          if (targetId) {
+            realTarget = minions.find(m => m.id === targetId) || target;
+          }
+          if (realTarget && realTarget.hp > 0) {
             if (realTarget instanceof Minion) {
               console.log(`Minion ${realTarget.id} damaged: HP before=${realTarget.hp}, damage=${damage}`);
             }
@@ -944,6 +946,10 @@ class CaitlynAI {
             if (realTarget instanceof CaitlynAI && realTarget.team !== this.team) {
               realTarget.lastHitBy = this;
             }
+          }
+          // Still create projectile for visual effect
+          basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
+            // Projectile hit callback - damage already applied, just for visual effects
           }, isHeadshot, target, damage));
         }
         this.pendingAttack = null;
@@ -1328,7 +1334,7 @@ class CaitlynAI {
       
       // Attack animation and effects
       let scale = 1;
-      if (this.attackTimer > this.attackDelay - 0.15) scale = 1.15;
+      if (this.windupTimer > 0 || this.attackTimer > this.attackDelay - 0.15) scale = 1.15;
       
       ctx.save();
       ctx.translate(this.x, this.y);
