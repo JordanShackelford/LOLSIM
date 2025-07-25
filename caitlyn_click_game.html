@@ -1216,7 +1216,7 @@ class CaitlynAI {
             this.rChanneling = true;
             this.rChannelTime = 3.0; // 3s channel (was 1.0)
           } else {
-            if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
+            // Debug overlay removed to prevent errors
             this.rTarget = null;
             this.rChanneling = false;
           }
@@ -2972,7 +2972,7 @@ function gameLoop(timestamp) {
     basicProjectiles.forEach(p => p.update(delta));
     basicProjectiles.forEach(p => p.draw());
     basicProjectiles = basicProjectiles.filter(p => p.alive);
-    if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'BasicProjectiles: ' + basicProjectiles.length;
+    // Debug overlay removed to prevent errors
     // Draw minions, turrets, nexuses, caitlyns
     // (already present above)
     // Now draw basic projectiles above all units
@@ -3285,7 +3285,7 @@ function gameLoop(timestamp) {
   // --- End projectile debug overlay ---
 
   // --- At the end of gameLoop, update the debug overlay with all projectile positions ---
-  if (window._projectileDebug && debugOverlay) {
+  if (window._projectileDebug && typeof debugOverlay !== 'undefined' && debugOverlay) {
     if (window._projectileDebug.length > 0) {
       debugOverlay.textContent = 'Projectiles: ' + window._projectileDebug.map(p => `(${Math.round(p.x)},${Math.round(p.y)})`).join(' ');
     } else {
@@ -3779,7 +3779,7 @@ class UltProjectile {
   constructor(owner, x, y, target) {
     // Strict runtime check: only allow CaitlynAI targets
     if (!target || !target.constructor || target.constructor.name !== 'CaitlynAI') {
-      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile target is not CaitlynAI!';
+              // Debug overlay removed to prevent errors
       console.error('ERROR: UltProjectile target is not CaitlynAI!', target);
       this.alive = false;
       return;
@@ -3802,7 +3802,7 @@ class UltProjectile {
     if (!this.alive) return;
     // Runtime check: only update if target is CaitlynAI
     if (!this.target || !this.target.constructor || this.target.constructor.name !== 'CaitlynAI') {
-      if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'ERROR: UltProjectile update: target is not CaitlynAI!';
+              // Debug overlay removed to prevent errors
       console.error('ERROR: UltProjectile update: target is not CaitlynAI!', this.target);
       this.alive = false;
       return;
