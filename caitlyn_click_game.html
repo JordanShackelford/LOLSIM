@@ -781,6 +781,10 @@ class CaitlynAI {
       }
       this.canBuy = false;
     }
+    // Reset canBuy when far from base (so they can buy again on next recall)
+    if (!this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) > NEXUS_RADIUS + 50) {
+      this.canBuy = true;
+    }
     // Trap recharge and placement logic (always runs)
     if (this.trapCharges < TRAP_CAP) {
       this.trapRechargeTimer += delta;
