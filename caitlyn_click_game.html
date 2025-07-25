@@ -498,6 +498,18 @@ class CaitlynAI {
     // --- Temporal input stacking for neural net ---
     // Set number of frames to stack
     this.TEMPORAL_FRAMES = 8;
+    // In CaitlynAI constructor, add XP, level, and mana properties
+    this.xp = 0;
+    this.level = 1;
+    this.mana = 313; // Caitlyn base mana
+    this.maxMana = 313;
+    this.manaRegen = 7.4; // per 5s, so 1.48/s
+    this.xpToNext = [0, 280, 660, 1140, 1720, 2260, 2840, 3460, 4120, 4820, 5560, 6340, 7160, 8020, 8920, 9860];
+    // In CaitlynAI constructor, add:
+    this.basicAttackCount = 0;
+    // In CaitlynAI constructor, add:
+    this.baseAD = 59;
+    this.adGrowth = 3.4;
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
   static HIDDEN1 = 24;
@@ -875,9 +887,11 @@ class CaitlynAI {
     }
     // Q cast trigger
     if (useQ && this.qTimer <= 0 && !this.qActive && this.qWindup <= 0) {
-      this.qAttempts++;
-      this.qWindup = Q_CAST_TIME;
-      return; // Start windup, can't do other actions
+      if (this.spendMana(50)) {
+        this.qAttempts++;
+        this.qWindup = Q_CAST_TIME;
+        return; // Start windup, can't do other actions
+      }
     }
 
     // Attack logic
@@ -941,16 +955,17 @@ class CaitlynAI {
     if (target && (target.trapped || target.netted)) attackRange = HEADSHOT_RANGE;
     if (doAttack && target && this.attackTimer <= 0 && dist <= attackRange) {
       this.attackAttempts++;
-      let damage = CAITLYN_BASE_AD;
+      let damage = this.getAD();
       let isHeadshot = false;
       if (this.headshotReady || (target.trapped || target.netted)) {
-        damage += Math.round(CAITLYN_BASE_AD * HEADSHOT_BONUS_MULT);
+        damage += Math.round(this.getAD() * HEADSHOT_BONUS_MULT);
         this.headshotReady = false;
         this.basicAttackCount = 0;
         isHeadshot = true;
       } else {
         this.basicAttackCount++;
         if (inBrush(this.x, this.y)) this.basicAttackCount++;
+        const stacksNeeded = inBrush(this.x, this.y) ? HEADSHOT_STACKS_BRUSH : HEADSHOT_STACKS_NEEDED;
         if (this.basicAttackCount >= stacksNeeded) {
           this.headshotReady = true;
         }
@@ -962,30 +977,101 @@ class CaitlynAI {
       if (target && target instanceof Minion) target.lastHitBy = this;
       return;
     } else {
-      // --- Improved kiting logic ---
+      // --- Advanced kiting logic ---
       let speed = this.moveSpeed * parseFloat(speedSlider.value);
       if (this.slowTimer > 0) speed *= E_SLOW_AMOUNT;
       let moveVecX = 0, moveVecY = 0;
-      if (target) {
+      let meleeThreats = minions.filter(m => m.alive && m.team !== this.team && (m.type === 'melee' || m.type === 'super') && Math.hypot(m.x - this.x, m.y - this.y) < this.attackRange * 1.1);
+      // Calculate safe direction away from all melee threats
+      let threatVecX = 0, threatVecY = 0;
+      for (const m of meleeThreats) {
+        const dx = this.x - m.x;
+        const dy = this.y - m.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 1e-3) {
+          threatVecX += dx / (dist * dist); // Weight by inverse square distance
+          threatVecY += dy / (dist * dist);
+        }
+      }
+      // Avoid walking into turrets
+      let avoidTurretX = 0, avoidTurretY = 0;
+      for (const t of turrets) {
+        if (t.team !== this.team) {
+          const turretDist = Math.hypot(this.x - t.x, this.y - t.y) - t.range;
+          if (turretDist < 40) {
+            const tx = this.x - t.x;
+            const ty = this.y - t.y;
+            const tlen = Math.hypot(tx, ty);
+            if (tlen > 1e-3) {
+              avoidTurretX += tx / tlen;
+              avoidTurretY += ty / tlen;
+            }
+          }
+        }
+      }
+      // Avoid minions (collision avoidance)
+      let avoidMinionX = 0, avoidMinionY = 0;
+      for (const m of minions) {
+        if (m.alive && Math.hypot(this.x - m.x, this.y - m.y) < 32) {
+          avoidMinionX += (this.x - m.x);
+          avoidMinionY += (this.y - m.y);
+        }
+      }
+      // Strafe direction alternates every second
+      if (!this._strafeDir || Math.floor(performance.now() / 1000) % 2 === 0) {
+        this._strafeDir = 1;
+      } else {
+        this._strafeDir = -1;
+      }
+      // Main movement logic
+      if (this.attackTimer > 0 && (meleeThreats.length > 0 || (target && Math.hypot(target.x - this.x, target.y - this.y) < this.attackRange * 0.9))) {
+        // Kite away from all melee threats (or target if no melee)
+        if (threatVecX !== 0 || threatVecY !== 0) {
+          moveVecX = threatVecX + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+          moveVecY = threatVecY + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+        } else if (target) {
+          // Fallback: kite from target
+          const dx = this.x - target.x;
+          const dy = this.y - target.y;
+          const len = Math.hypot(dx, dy);
+          if (len > 1e-3) {
+            moveVecX = dx / len + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+            moveVecY = dy / len + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+          }
+        }
+      } else if (target) {
+        // In range: strafe
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const len = Math.hypot(dx, dy);
-        if (this.attackTimer > 0 && len > 1e-3) {
-          // Move away from target while waiting for attack cooldown (kite)
-          moveVecX = -dx / len;
-          moveVecY = -dy / len;
-        } else if (len > 1e-3) {
-          // Move toward target if ready to attack
-          moveVecX = dx / len;
-          moveVecY = dy / len;
+        let perpX = -dy / (len || 1);
+        let perpY = dx / (len || 1);
+        moveVecX = perpX * this._strafeDir + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+        moveVecY = perpY * this._strafeDir + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+        // If out of range, move toward target
+        if (len > this.attackRange * 0.98) {
+          moveVecX = dx / len + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+          moveVecY = dy / len + avoidTurretY * 0.7 + avoidMinionY * 0.2;
         }
       } else {
-        // No target, use neural net output
-        moveVecX = moveX;
-        moveVecY = moveY;
+        // No target: wander using neural net output, but keep moving
+        moveVecX = moveX + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+        moveVecY = moveY + avoidTurretY * 0.7 + avoidMinionY * 0.2;
       }
+      // Normalize movement vector
+      const mlen = Math.hypot(moveVecX, moveVecY);
+      if (mlen > 1e-3) {
+        moveVecX /= mlen;
+        moveVecY /= mlen;
+      }
+      // Avoid map edges
+      const edgeBuffer = 40;
+      if (this.x < edgeBuffer) moveVecX += 0.5;
+      if (this.x > CANVAS_WIDTH - edgeBuffer) moveVecX -= 0.5;
+      if (this.y < edgeBuffer) moveVecY += 0.5;
+      if (this.y > CANVAS_HEIGHT - edgeBuffer) moveVecY -= 0.5;
       // Reduce random jitter for more purposeful movement
-      const jitter = 0.05;
+      const jitter = 0.01;
       let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
       let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
       if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
@@ -1028,18 +1114,20 @@ class CaitlynAI {
     }
     // Use E if off cooldown, not dead, and target in range (for now, use randomly for demo)
     if (!this.dead && this.eCooldown <= 0 && this.useEIntent > 0.5) {
-      // Fire net in a direction (for now, away from nearest enemy)
-      let angle = Math.random() * Math.PI * 2;
-      if (others && others.length > 0) {
-        // Fire away from nearest enemy
-        let nearest = others.filter(o => o.team !== this.team && o.hp > 0)[0];
-        if (nearest) angle = Math.atan2(this.y - nearest.y, this.x - nearest.x);
+      if (this.spendMana(75)) {
+        // Fire net in a direction (for now, away from nearest enemy)
+        let angle = Math.random() * Math.PI * 2;
+        if (others && others.length > 0) {
+          // Fire away from nearest enemy
+          let nearest = others.filter(o => o.team !== this.team && o.hp > 0)[0];
+          if (nearest) angle = Math.atan2(this.y - nearest.y, this.x - nearest.x);
+        }
+        netProjectiles.push(new NetProjectile(this, this.x, this.y, angle));
+        // Knock Caitlyn back
+        this.x += Math.cos(angle) * -60;
+        this.y += Math.sin(angle) * -60;
+        this.eCooldown = 16; // fixed cooldown for now
       }
-      netProjectiles.push(new NetProjectile(this, this.x, this.y, angle));
-      // Knock Caitlyn back
-      this.x += Math.cos(angle) * -60;
-      this.y += Math.sin(angle) * -60;
-      this.eCooldown = 16; // fixed cooldown for now
     }
     // R cooldown
     this.rCooldown -= delta;
@@ -1057,21 +1145,23 @@ class CaitlynAI {
     }
     // If useR and R is ready, find target and start channel
     if (useR && this.rCooldown <= 0 && !this.rChanneling) {
-      // Find enemy Caitlyns in range (3500 units)
-      const enemiesInRange = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && c.constructor && c.constructor.name === 'CaitlynAI' && Math.hypot(c.x - this.x, c.y - this.y) < 3500 * GAME_UNIT_TO_PX);
-      if (enemiesInRange.length > 0) {
-        // Select target based on rTarget output
-        const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
-        const candidate = enemiesInRange[idx];
-        // Final strict check: only allow enemy Caitlyns, never turrets/minions/other
-        if (candidate && candidate.team !== this.team && candidate !== this && candidate.constructor && candidate.constructor.name === 'CaitlynAI') {
-          this.rTarget = candidate;
-          this.rChanneling = true;
-          this.rChannelTime = 3.0; // 3s channel (was 1.0)
-        } else {
-          if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
-          this.rTarget = null;
-          this.rChanneling = false;
+      if (this.spendMana(100)) {
+        // Find enemy Caitlyns in range (3500 units)
+        const enemiesInRange = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && c.constructor && c.constructor.name === 'CaitlynAI' && Math.hypot(c.x - this.x, c.y - this.y) < 3500 * GAME_UNIT_TO_PX);
+        if (enemiesInRange.length > 0) {
+          // Select target based on rTarget output
+          const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
+          const candidate = enemiesInRange[idx];
+          // Final strict check: only allow enemy Caitlyns, never turrets/minions/other
+          if (candidate && candidate.team !== this.team && candidate !== this && candidate.constructor && candidate.constructor.name === 'CaitlynAI') {
+            this.rTarget = candidate;
+            this.rChanneling = true;
+            this.rChannelTime = 3.0; // 3s channel (was 1.0)
+          } else {
+            if (typeof debugOverlay !== 'undefined' && debugOverlay) debugOverlay.textContent = 'R target error: tried to ult non-enemy CaitlynAI (turret/minion/other)!';
+            this.rTarget = null;
+            this.rChanneling = false;
+          }
         }
       }
     }
@@ -1122,6 +1212,8 @@ class CaitlynAI {
     } else if (nudgeDistMoved >= 2) {
       this._lastNudgeTime = now;
     }
+    // In CaitlynAI.update, at the start of each frame, regen mana
+    this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * delta);
   }
 
   draw() {
@@ -1356,9 +1448,11 @@ class CaitlynAI {
       ctx.setLineDash([]);
       ctx.restore();
       // Draw headshot stacks
+      const stacksNeeded = inBrush(this.x, this.y) ? HEADSHOT_STACKS_BRUSH : HEADSHOT_STACKS_NEEDED;
+      const basicAttackCount = typeof this.basicAttackCount === 'number' ? this.basicAttackCount : 0;
       ctx.fillStyle = this.headshotReady ? 'red' : 'orange';
       ctx.font = '12px sans-serif';
-      ctx.fillText(`HS: ${this.basicAttackCount}/${inBrush(this.x, this.y) ? HEADSHOT_STACKS_BRUSH : HEADSHOT_STACKS_NEEDED}`, this.x - 20, this.y + 24);
+      ctx.fillText(`HS: ${basicAttackCount}/${stacksNeeded}`, this.x - 20, this.y + 24);
       // Draw trap/netted indicator
       if (this.trapped || this.netted) {
         ctx.fillStyle = '#00ffff';
@@ -1397,6 +1491,19 @@ class CaitlynAI {
         ctx.restore();
       }
       // ... existing code ...
+      // In CaitlynAI.draw, show XP, level, and mana bar below HP
+      ctx.save();
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#00bcd4';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Lv${this.level}  XP:${this.xp}`, this.x, this.y + 36);
+      // Mana bar
+      const manaPercent = this.mana / this.maxMana;
+      ctx.fillStyle = '#2196f3';
+      ctx.fillRect(this.x - 20, this.y + 40, 40 * manaPercent, 4);
+      ctx.strokeStyle = '#1976d2';
+      ctx.strokeRect(this.x - 20, this.y + 40, 40, 4);
+      ctx.restore();
     } catch (e) {
       console.error('Exception in CaitlynAI.draw:', e, this, new Error().stack);
     }
@@ -1499,6 +1606,17 @@ class CaitlynAI {
       ctx.fillText(thought, this.x, bubbleY + 5);
       ctx.restore();
     }
+    // Draw AD above Caitlyn's head if toggle is enabled
+    if (showAD) {
+      ctx.save();
+      ctx.font = 'bold 13px monospace';
+      ctx.fillStyle = '#ff9800';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 4;
+      ctx.fillText('AD:' + Math.round(this.getAD()), this.x, this.y - CAITLYN_RADIUS - 44);
+      ctx.restore();
+    }
   }
   // Calculate stats from items
   getBaseAD() { return CAITLYN_BASE_AD; }
@@ -1514,6 +1632,27 @@ class CaitlynAI {
       this.tookDamage = false;
       console.log(`Caitlyn (team ${this.team}) started recall at (${Math.round(this.x)},${Math.round(this.y)}) with gold: ${this.gold}`);
     }
+  }
+  // Add gainXP and spendMana methods to CaitlynAI
+  gainXP(amount) {
+    this.xp += amount;
+    while (this.level < 18 && this.xp >= this.xpToNext[this.level]) {
+      this.level++;
+      // Level up: scale stats
+      this.hp += 107; // HP per level
+      this.maxHp = (this.maxHp || CAITLYN_BASE_HP) + 107;
+      this.attackSpeed *= 1.035; // +3.5% per level
+      this.mana += 50;
+      this.maxMana += 50;
+      this.manaRegen += 0.14; // +0.7 per 5s
+      this.levelUpEffect = 1.0; // for UI flash
+    }
+  }
+  spendMana(amount) {
+    if (this.mana >= amount) { this.mana -= amount; return true; } return false;
+  }
+  getAD() {
+    return this.baseAD + this.adGrowth * (this.level - 1);
   }
 }
 
@@ -2293,6 +2432,13 @@ class Minion {
       if (this.lastHitBy && this.lastHitBy.team !== this.team) {
         this.lastHitBy.gold += this.gold;
         this.lastHitBy.minionLastHits = (this.lastHitBy.minionLastHits || 0) + 1;
+      }
+      // XP grant
+      const xpAmount = { melee: 60, caster: 29, cannon: 92, super: 97 }[this.type] || 0;
+      for (const c of caitlyns) {
+        if (Math.hypot(c.x - this.x, c.y - this.y) < 1200 * GAME_UNIT_TO_PX) {
+          c.gainXP(xpAmount);
+        }
       }
     }
     // --- Add flash effect to minion icon ---
@@ -4066,30 +4212,101 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
       }
       return;
     } else {
-      // --- Improved kiting logic ---
+      // --- Advanced kiting logic ---
       let speed = this.moveSpeed * parseFloat(speedSlider.value);
       if (this.slowTimer > 0) speed *= E_SLOW_AMOUNT;
       let moveVecX = 0, moveVecY = 0;
-      if (target) {
+      let meleeThreats = minions.filter(m => m.alive && m.team !== this.team && (m.type === 'melee' || m.type === 'super') && Math.hypot(m.x - this.x, m.y - this.y) < this.attackRange * 1.1);
+      // Calculate safe direction away from all melee threats
+      let threatVecX = 0, threatVecY = 0;
+      for (const m of meleeThreats) {
+        const dx = this.x - m.x;
+        const dy = this.y - m.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 1e-3) {
+          threatVecX += dx / (dist * dist); // Weight by inverse square distance
+          threatVecY += dy / (dist * dist);
+        }
+      }
+      // Avoid walking into turrets
+      let avoidTurretX = 0, avoidTurretY = 0;
+      for (const t of turrets) {
+        if (t.team !== this.team) {
+          const turretDist = Math.hypot(this.x - t.x, this.y - t.y) - t.range;
+          if (turretDist < 40) {
+            const tx = this.x - t.x;
+            const ty = this.y - t.y;
+            const tlen = Math.hypot(tx, ty);
+            if (tlen > 1e-3) {
+              avoidTurretX += tx / tlen;
+              avoidTurretY += ty / tlen;
+            }
+          }
+        }
+      }
+      // Avoid minions (collision avoidance)
+      let avoidMinionX = 0, avoidMinionY = 0;
+      for (const m of minions) {
+        if (m.alive && Math.hypot(this.x - m.x, this.y - m.y) < 32) {
+          avoidMinionX += (this.x - m.x);
+          avoidMinionY += (this.y - m.y);
+        }
+      }
+      // Strafe direction alternates every second
+      if (!this._strafeDir || Math.floor(performance.now() / 1000) % 2 === 0) {
+        this._strafeDir = 1;
+      } else {
+        this._strafeDir = -1;
+      }
+      // Main movement logic
+      if (this.attackTimer > 0 && (meleeThreats.length > 0 || (target && Math.hypot(target.x - this.x, target.y - this.y) < this.attackRange * 0.9))) {
+        // Kite away from all melee threats (or target if no melee)
+        if (threatVecX !== 0 || threatVecY !== 0) {
+          moveVecX = threatVecX + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+          moveVecY = threatVecY + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+        } else if (target) {
+          // Fallback: kite from target
+          const dx = this.x - target.x;
+          const dy = this.y - target.y;
+          const len = Math.hypot(dx, dy);
+          if (len > 1e-3) {
+            moveVecX = dx / len + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+            moveVecY = dy / len + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+          }
+        }
+      } else if (target) {
+        // In range: strafe
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const len = Math.hypot(dx, dy);
-        if (this.attackTimer > 0 && len > 1e-3) {
-          // Move away from target while waiting for attack cooldown (kite)
-          moveVecX = -dx / len;
-          moveVecY = -dy / len;
-        } else if (len > 1e-3) {
-          // Move toward target if ready to attack
-          moveVecX = dx / len;
-          moveVecY = dy / len;
+        let perpX = -dy / (len || 1);
+        let perpY = dx / (len || 1);
+        moveVecX = perpX * this._strafeDir + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+        moveVecY = perpY * this._strafeDir + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+        // If out of range, move toward target
+        if (len > this.attackRange * 0.98) {
+          moveVecX = dx / len + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+          moveVecY = dy / len + avoidTurretY * 0.7 + avoidMinionY * 0.2;
         }
       } else {
-        // No target, use neural net output
-        moveVecX = moveX;
-        moveVecY = moveY;
+        // No target: wander using neural net output, but keep moving
+        moveVecX = moveX + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+        moveVecY = moveY + avoidTurretY * 0.7 + avoidMinionY * 0.2;
       }
+      // Normalize movement vector
+      const mlen = Math.hypot(moveVecX, moveVecY);
+      if (mlen > 1e-3) {
+        moveVecX /= mlen;
+        moveVecY /= mlen;
+      }
+      // Avoid map edges
+      const edgeBuffer = 40;
+      if (this.x < edgeBuffer) moveVecX += 0.5;
+      if (this.x > CANVAS_WIDTH - edgeBuffer) moveVecX -= 0.5;
+      if (this.y < edgeBuffer) moveVecY += 0.5;
+      if (this.y > CANVAS_HEIGHT - edgeBuffer) moveVecY -= 0.5;
       // Reduce random jitter for more purposeful movement
-      const jitter = 0.05;
+      const jitter = 0.01;
       let newX = this.x + (moveVecX + (Math.random() - 0.5) * jitter) * speed * delta;
       let newY = this.y + (moveVecY + (Math.random() - 0.5) * jitter) * speed * delta;
       if (!isBlockedMap(newX, newY)) { this.x = newX; this.y = newY; }
@@ -4543,7 +4760,7 @@ const origTurretProjectileDraw = TurretProjectile.prototype.draw;
 TurretProjectile.prototype.draw = function() {
   if (!this.alive || !this.target || this.target.hp <= 0) return;
   ctx.save();
-  // Draw thin red laser line
+  // Draw thin red laser beam from turret to target
   ctx.globalAlpha = 0.85;
   ctx.strokeStyle = '#ff1744';
   ctx.lineWidth = 2.5;
