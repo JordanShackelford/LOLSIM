@@ -395,8 +395,15 @@ function findBestCaitlyn() {
   let best = null;
   let bestFitness = -Infinity;
   
+  // Defensive check: ensure caitlyns array exists and has elements
+  if (!caitlyns || caitlyns.length === 0) {
+    console.warn('findBestCaitlyn: caitlyns array is empty or undefined');
+    return null;
+  }
+  
   for (const c of caitlyns) {
-    if (c.fitness > bestFitness) {
+    // Defensive check: ensure Caitlyn object is valid
+    if (c && typeof c.fitness === 'number' && c.fitness > bestFitness) {
       bestFitness = c.fitness;
       best = c;
     }
@@ -511,6 +518,7 @@ class CaitlynAI {
     // In CaitlynAI constructor, add:
     this.baseAD = 59;
     this.adGrowth = 3.4;
+    this.attackAnimTimer = 0; // Animation timer for attack scale effect
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
   static HIDDEN1 = 24;
@@ -718,13 +726,15 @@ class CaitlynAI {
         this.lastHitBy = null; // Reset lastHitBy on respawn
         // Copy the best Caitlyn's brain with small mutation
         const bestCaitlyn = findBestCaitlyn();
-        if (bestCaitlyn && bestCaitlyn !== this) {
+        if (bestCaitlyn && bestCaitlyn !== this && bestCaitlyn.brain) {
           // Copy best brain with small mutation for diversity
           this.brain = CaitlynAI.mutate(bestCaitlyn.brain, 0.05); // 5% mutation rate
           console.log(`Caitlyn (team ${this.team}) copied brain from best performer (fitness: ${bestCaitlyn.fitness.toFixed(1)})`);
           saveBrain(bestCaitlyn.brain); // Save best brain to localStorage on respawn
         } else {
-          saveBrain(this.brain); // Save own brain if best
+          // Fallback: use random brain if no best Caitlyn found
+          this.brain = CaitlynAI.randomBrain();
+          console.log(`Caitlyn (team ${this.team}) using random brain for respawn`);
         }
       }
       return;
@@ -951,6 +961,8 @@ class CaitlynAI {
           basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
             // Projectile hit callback - damage already applied, just for visual effects
           }, isHeadshot, target, damage));
+          // Start attack animation timer
+          this.attackAnimTimer = 0.15;
         }
         this.pendingAttack = null;
       }
@@ -1220,6 +1232,7 @@ class CaitlynAI {
     }
     // In CaitlynAI.update, at the start of each frame, regen mana
     this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * delta);
+    if (this.attackAnimTimer > 0) this.attackAnimTimer = Math.max(0, this.attackAnimTimer - delta);
   }
 
   draw() {
@@ -1333,8 +1346,7 @@ class CaitlynAI {
       let drawY = this.y - SPRITE_SIZE / 2;
       
       // Attack animation and effects
-      let scale = 1;
-      if (this.windupTimer > 0 || this.attackTimer > this.attackDelay - 0.2 || this.pendingAttack) scale = 1.15;
+      let scale = (this.attackAnimTimer > 0) ? 1.15 : 1;
       
       ctx.save();
       ctx.translate(this.x, this.y);
