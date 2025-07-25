@@ -141,10 +141,17 @@ const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
 // Item shop
 const ITEM_SHOP = [
   {
+    name: 'BF Sword',
+    cost: 1500,
+    ad: 40,
+    icon: 'bfsword.png',
+    stackable: false
+  },
+  {
     name: 'Long Sword',
     cost: 500,
     ad: 12,
-    icon: 'longsword.png', // use correct filename
+    icon: 'longsword.png',
     stackable: true
   }
 ];
@@ -807,12 +814,22 @@ class CaitlynAI {
     }
     // If at base and can buy, buy items if enough gold
     if (this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) < NEXUS_RADIUS + 10) {
-      for (const item of ITEM_SHOP) {
-        while (this.gold >= item.cost) {
-          this.gold -= item.cost;
-          this.items.push(item);
-          this.goldSpent += item.cost;
-          // Allow buying multiple Long Swords per base visit
+      // Prefer BF Sword if affordable, otherwise buy Long Swords
+      const bfSword = ITEM_SHOP.find(item => item.name === 'BF Sword');
+      const longSword = ITEM_SHOP.find(item => item.name === 'Long Sword');
+      
+      if (bfSword && this.gold >= bfSword.cost) {
+        // Buy BF Sword if we can afford it
+        this.gold -= bfSword.cost;
+        this.items.push(bfSword);
+        this.goldSpent += bfSword.cost;
+        console.log(`Caitlyn (team ${this.team}) bought BF Sword for ${bfSword.cost} gold`);
+      } else if (longSword) {
+        // Buy Long Swords with remaining gold
+        while (this.gold >= longSword.cost) {
+          this.gold -= longSword.cost;
+          this.items.push(longSword);
+          this.goldSpent += longSword.cost;
         }
       }
       this.canBuy = false;
