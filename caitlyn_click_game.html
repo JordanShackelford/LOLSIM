@@ -744,9 +744,8 @@ class CaitlynAI {
       if (this.lastHitBy && this.lastHitBy.team !== this.team) {
         this.lastHitBy.gold += 300;
       }
-      // On death, set respawn timer to ceil(game time in seconds)
-      const gameTime = (typeof generationStartTime === 'number' && lastTime) ? ((lastTime - generationStartTime) / 1000) : now;
-      this.respawnTimer = Math.ceil(gameTime);
+      // On death, set respawn timer to fixed duration (5 seconds)
+      this.respawnTimer = 5.0;
       this.dead = true;
       return;
     }
