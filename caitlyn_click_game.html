@@ -401,6 +401,8 @@ function findBestCaitlyn() {
     return null;
   }
   
+  console.log(`findBestCaitlyn: checking ${caitlyns.length} Caitlyns`);
+  
   for (const c of caitlyns) {
     // Defensive check: ensure Caitlyn object is valid and has a brain
     if (c && typeof c.fitness === 'number' && c.fitness > bestFitness && c.brain) {
@@ -411,11 +413,16 @@ function findBestCaitlyn() {
   
   // If no Caitlyn with brain found, return any Caitlyn with a brain
   if (!best) {
+    console.log('findBestCaitlyn: no Caitlyn with fitness found, looking for any with brain');
     for (const c of caitlyns) {
       if (c && c.brain) {
+        console.log(`findBestCaitlyn: found Caitlyn with brain (team ${c.team})`);
         return c;
       }
     }
+    console.log('findBestCaitlyn: no Caitlyn with brain found');
+  } else {
+    console.log(`findBestCaitlyn: found best Caitlyn (team ${best.team}, fitness: ${best.fitness})`);
   }
   
   return best;
@@ -724,9 +731,13 @@ class CaitlynAI {
   update(others, delta, projectiles, minions, turrets) {
     const now = performance.now() / 1000;
     if (this.dead) {
-      if (!allowRespawn) return;
+      if (!allowRespawn) {
+        console.log(`Caitlyn (team ${this.team}) respawn blocked - allowRespawn is false`);
+        return;
+      }
       this.respawnTimer -= delta;
       if (this.respawnTimer <= 0) {
+        console.log(`Caitlyn (team ${this.team}) respawn timer finished, respawning...`);
         // Respawn at own Nexus
         this.x = NEXUS_POS[this.team].x;
         this.y = NEXUS_POS[this.team].y;
@@ -744,7 +755,7 @@ class CaitlynAI {
         } else {
           // Fallback: use random brain if no best Caitlyn found
           this.brain = CaitlynAI.randomBrain();
-          console.log(`Caitlyn (team ${this.team}) using random brain for respawn`);
+          console.log(`Caitlyn (team ${this.team}) using random brain for respawn (no best Caitlyn found)`);
         }
       }
       return;
