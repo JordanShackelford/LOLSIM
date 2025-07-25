@@ -450,6 +450,7 @@ class CaitlynAI {
     this.pendingAttack = null;
     // --- End robust state reset ---
     this.hp = CAITLYN_BASE_HP;
+    this.maxHp = CAITLYN_BASE_HP;
     this.dead = false;
     this.attackTimer = 0;
     this.brain = brain || CaitlynAI.randomBrain();
@@ -535,6 +536,9 @@ class CaitlynAI {
     this.baseAD = 59;
     this.adGrowth = 3.4;
     this.attackAnimTimer = 0; // Animation timer for attack scale effect
+    
+    // Debug: log Caitlyn creation
+    console.log(`Created Caitlyn (team ${this.team}) at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
   static HIDDEN1 = 24;
@@ -2284,6 +2288,7 @@ function initCaitlyns(brain) {
       zed.isZed = true;
       caitlyns.push(zed);
     }
+    console.log(`initCaitlyns: Created ${caitlyns.length} Caitlyns total`);
   } catch (e) {
     console.error('Exception in initCaitlyns:', e, e && e.stack ? e.stack : new Error().stack);
     alert('Error initializing Caitlyns: ' + e);
