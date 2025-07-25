@@ -4229,10 +4229,7 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
         const { target, damage } = this.pendingAttack;
         if (target && target.hp > 0) {
           basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
-            target.hp -= damage;
-            if (target.hp < 0) target.hp = 0;
-            if (target.hp === 0 && target instanceof Minion) target.alive = false;
-            this.damageDealt += damage;
+            // Damage already applied in main attack system, just for visual effects
           }, false, target, damage));
         }
         this.pendingAttack = null;
