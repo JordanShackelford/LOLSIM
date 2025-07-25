@@ -402,10 +402,19 @@ function findBestCaitlyn() {
   }
   
   for (const c of caitlyns) {
-    // Defensive check: ensure Caitlyn object is valid
-    if (c && typeof c.fitness === 'number' && c.fitness > bestFitness) {
+    // Defensive check: ensure Caitlyn object is valid and has a brain
+    if (c && typeof c.fitness === 'number' && c.fitness > bestFitness && c.brain) {
       bestFitness = c.fitness;
       best = c;
+    }
+  }
+  
+  // If no Caitlyn with brain found, return any Caitlyn with a brain
+  if (!best) {
+    for (const c of caitlyns) {
+      if (c && c.brain) {
+        return c;
+      }
     }
   }
   
@@ -724,6 +733,7 @@ class CaitlynAI {
         this.hp = CAITLYN_BASE_HP + this.getBonusHP();
         this.dead = false;
         this.lastHitBy = null; // Reset lastHitBy on respawn
+        console.log(`Caitlyn (team ${this.team}) respawned at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
         // Copy the best Caitlyn's brain with small mutation
         const bestCaitlyn = findBestCaitlyn();
         if (bestCaitlyn && bestCaitlyn !== this && bestCaitlyn.brain) {
@@ -747,6 +757,7 @@ class CaitlynAI {
       // On death, set respawn timer to fixed duration (5 seconds)
       this.respawnTimer = 5.0;
       this.dead = true;
+      console.log(`Caitlyn (team ${this.team}) died, respawn timer set to ${this.respawnTimer}s`);
       return;
     }
     // Recall logic
@@ -3080,6 +3091,7 @@ function gameLoop(timestamp) {
     }
     // Restore original reset logic: all Caitlyns dead
     const aliveCaitlyns = caitlyns.filter(c => c.hp > 0 && !c.dead);
+    console.log(`Game loop: ${caitlyns.length} total Caitlyns, ${aliveCaitlyns.length} alive`);
     if (aliveCaitlyns.length === 0) {
       // End generation: pass on genes of highest-grade Caitlyn
       for (const c of caitlyns) {
