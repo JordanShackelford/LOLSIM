@@ -1334,7 +1334,7 @@ class CaitlynAI {
       
       // Attack animation and effects
       let scale = 1;
-      if (this.windupTimer > 0 || this.attackTimer > this.attackDelay - 0.15) scale = 1.15;
+      if (this.windupTimer > 0 || this.attackTimer > this.attackDelay - 0.2 || this.pendingAttack) scale = 1.15;
       
       ctx.save();
       ctx.translate(this.x, this.y);
