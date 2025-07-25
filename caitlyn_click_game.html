@@ -1664,17 +1664,6 @@ class CaitlynAI {
       ctx.fillText(thought, this.x, bubbleY + 5);
       ctx.restore();
     }
-    // Draw AD above Caitlyn's head if toggle is enabled
-    if (showAD) {
-      ctx.save();
-      ctx.font = 'bold 13px monospace';
-      ctx.fillStyle = '#ff9800';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = '#000';
-      ctx.shadowBlur = 4;
-      ctx.fillText('AD:' + Math.round(this.getAD()), this.x, this.y - CAITLYN_RADIUS - 44);
-      ctx.restore();
-    }
   }
   // Calculate stats from items
   getBaseAD() { return CAITLYN_BASE_AD; }
@@ -3382,7 +3371,7 @@ function gameLoop(timestamp) {
   const origGetBonusAD = CaitlynAI.prototype.getBonusAD || function() { return this.items.reduce((s, it) => s + (it.ad || 0), 0); };
   CaitlynAI.prototype.getBonusAD = function() {
     let ad = origGetBonusAD.call(this);
-    if (this.hasBFSword) ad += BFSWORD_AD;
+    if (this.hasBFSword && this.bfswordAD) ad += this.bfswordAD;
     return ad;
   };
   // --- End BFSword item system ---
