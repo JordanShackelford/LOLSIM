@@ -2561,21 +2561,18 @@ class Minion {
         }
       }
     }
-    // 4. Enemy Nexus in range
+    // 4. Enemy Nexus in range (only when very close)
     if (!bestTarget) {
       const enemyNexus = nexuses[1 - this.team];
       const dist = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
-      console.log(`Minion ${this.id} (team ${this.team}) checking nexus: dist=${dist}, range=${this.range}, NEXUS_RADIUS=${NEXUS_RADIUS}, in range: ${dist < this.range + NEXUS_RADIUS}`);
-      if (dist < this.range + NEXUS_RADIUS) {
+      if (dist < this.range) {
         bestTarget = enemyNexus;
         bestDist = dist;
-        console.log(`Minion ${this.id} targeting enemy nexus!`);
       }
     }
     this.target = bestTarget;
     // Attack if in range
     if (this.target && this.attackTimer <= 0) {
-      console.log(`Minion ${this.id} attacking ${this.target.constructor.name} for ${this.ad} damage`);
       if (this.target.hp !== undefined) {
         let dmg = this.ad;
         // Turret damage reduction
@@ -2601,7 +2598,6 @@ class Minion {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.hypot(dx, dy);
-      console.log(`Minion ${this.id} has target ${this.target.constructor.name}, dist=${dist}, range=${this.range}`);
       if (dist > this.range) {
         // Move toward target if not in attack range
         const newX = this.x + (dx / dist) * this.moveSpeed * delta;
@@ -2623,15 +2619,9 @@ class Minion {
         if (canMove) {
           this.x = newX;
           this.y = newY;
-          console.log(`Minion ${this.id} moved to ${this.x}, ${this.y}`);
-        } else {
-          console.log(`Minion ${this.id} blocked by collision`);
         }
-      } else {
-        console.log(`Minion ${this.id} in attack range, not moving`);
       }
     } else {
-      console.log(`Minion ${this.id} no target, following path`);
       // Path following: move toward next waypoint
       const nextIdx = this.pathIdx + 1;
       if (nextIdx < this.path.length) {
@@ -2640,7 +2630,6 @@ class Minion {
         const dx = targetPt.x - this.x;
         const dy = targetPt.y - this.y;
         const dist = Math.hypot(dx, dy);
-        console.log(`Minion ${this.id} path: nextIdx=${nextIdx}, targetPt=${targetPt.x},${targetPt.y}, dist=${dist}`);
         if (dist > 2) {
           // Calculate new position
           const newX = this.x + (dx / dist) * this.moveSpeed * delta;
