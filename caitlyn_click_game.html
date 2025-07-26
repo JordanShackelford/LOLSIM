@@ -2255,13 +2255,10 @@ function updateTeamMetricsChart() {
     datasets = [0, 1].map(t => ({
       label: `Team ${t + 1}`,
       data: teamMetricsHistory.map((m, i) => {
-        // Calculate average fitness for this team in this generation
+        // Use stored avgFitness data
         if (!m.avgFitness || !Array.isArray(m.avgFitness)) {
-          m.avgFitness = [0, 0];
-          for (let team = 0; team < 2; ++team) {
-            const teamCaitlyns = (window.generationCaitlyns && window.generationCaitlyns[i]) ? window.generationCaitlyns[i][team] : [];
-            m.avgFitness[team] = teamCaitlyns.length ? teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length : 0;
-          }
+          console.warn(`Missing avgFitness data for generation ${i}, team ${t}`);
+          return 0;
         }
         console.log('Graphing avgFitness for gen', i, 'team', t, ':', m.avgFitness[t]);
         return m.avgFitness[t];
@@ -3813,13 +3810,23 @@ function gameLoop(timestamp) {
       ];
       console.log('Storing generationCaitlyns:', genCaitlyns.map(team => team.map(c => c.fitness)));
       window.generationCaitlyns.push(genCaitlyns);
+      
+      // Calculate average fitness for each team
+      let teamAvgFitness = [0, 0];
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        teamAvgFitness[t] = teamCaitlyns.length ? teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length : 0;
+        console.log(`Team ${t} avgFitness: ${teamAvgFitness[t].toFixed(1)}`);
+      }
+      
       teamMetricsHistory.push({
         generation,
         wins: teamWins.slice(),
         avgDPM: teamAvgDPM.slice(),
         totalDPM: teamTotalDPM.slice(),
         gold: teamGold.slice(),
-        avgRank: teamAvgRank.slice()
+        avgRank: teamAvgRank.slice(),
+        avgFitness: teamAvgFitness.slice()
       });
       updateTeamMetricsChart();
       if (winner) {
@@ -3912,10 +3919,13 @@ function gameLoop(timestamp) {
         return 'D';
       }
       let teamAvgRank = [0, 0];
+      let teamAvgFitness = [0, 0];
       for (let t = 0; t < NUM_TEAMS; ++t) {
         const teamCaitlyns = caitlyns.filter(c => c.team === t);
         const avgFitness = teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length;
         teamAvgRank[t] = fitnessToRank(avgFitness);
+        teamAvgFitness[t] = avgFitness;
+        console.log(`Team ${t} avgFitness (all dead): ${avgFitness.toFixed(1)}`);
       }
       teamMetricsHistory.push({
         generation,
@@ -3923,7 +3933,8 @@ function gameLoop(timestamp) {
         avgDPM: teamAvgDPM.slice(),
         totalDPM: teamTotalDPM.slice(),
         gold: teamGold.slice(),
-        avgRank: teamAvgRank.slice()
+        avgRank: teamAvgRank.slice(),
+        avgFitness: teamAvgFitness.slice()
       });
       updateTeamMetricsChart();
       if (winner) {
