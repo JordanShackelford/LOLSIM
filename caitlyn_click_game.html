@@ -2607,7 +2607,7 @@ class Minion {
         let canMove = true;
         for (const other of minions) {
           if (other !== this && other.alive) {
-            const minDistance = this.radius + other.radius + 2;
+            const minDistance = this.radius + other.radius + 0.5; // Reduced buffer to allow closer combat
             const actualDistance = Math.hypot(newX - other.x, newY - other.y);
             if (actualDistance < minDistance) {
               canMove = false;
@@ -2635,11 +2635,11 @@ class Minion {
           const newX = this.x + (dx / dist) * this.moveSpeed * delta;
           const newY = this.y + (dy / dist) * this.moveSpeed * delta;
           
-          // Check for collision with other minions (less aggressive)
+          // Check for collision with other minions (allow closer spacing for combat)
           let canMove = true;
           for (const other of minions) {
             if (other !== this && other.alive) {
-              const minDistance = this.radius + other.radius + 2; // Reduced buffer from 5 to 2
+              const minDistance = this.radius + other.radius + 0.5; // Reduced buffer to allow closer combat
               const actualDistance = Math.hypot(newX - other.x, newY - other.y);
               if (actualDistance < minDistance) {
                 canMove = false;
@@ -2662,7 +2662,7 @@ class Minion {
             let canAvoid = true;
             for (const other of minions) {
               if (other !== this && other.alive) {
-                const minDistance = this.radius + other.radius + 5;
+                const minDistance = this.radius + other.radius + 1; // Reduced buffer for avoidance
                 const actualDistance = Math.hypot(avoidX - other.x, avoidY - other.y);
                 if (actualDistance < minDistance) {
                   canAvoid = false;
