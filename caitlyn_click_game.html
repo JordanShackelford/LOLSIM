@@ -2529,14 +2529,17 @@ class Minion {
     if (!bestTarget) {
       const enemyNexus = nexuses[1 - this.team];
       const dist = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
+      console.log(`Minion ${this.id} (team ${this.team}) checking nexus: dist=${dist}, range=${this.range}, NEXUS_RADIUS=${NEXUS_RADIUS}, in range: ${dist < this.range + NEXUS_RADIUS}`);
       if (dist < this.range + NEXUS_RADIUS) {
         bestTarget = enemyNexus;
         bestDist = dist;
+        console.log(`Minion ${this.id} targeting enemy nexus!`);
       }
     }
     this.target = bestTarget;
     // Attack if in range
     if (this.target && this.attackTimer <= 0) {
+      console.log(`Minion ${this.id} attacking ${this.target.constructor.name} for ${this.ad} damage`);
       if (this.target.hp !== undefined) {
         let dmg = this.ad;
         // Turret damage reduction
@@ -2571,11 +2574,11 @@ class Minion {
           const newX = this.x + (dx / dist) * this.moveSpeed * delta;
           const newY = this.y + (dy / dist) * this.moveSpeed * delta;
           
-          // Check for collision with other minions
+          // Check for collision with other minions (less aggressive)
           let canMove = true;
           for (const other of minions) {
             if (other !== this && other.alive) {
-              const minDistance = this.radius + other.radius + 5; // 5px buffer
+              const minDistance = this.radius + other.radius + 2; // Reduced buffer from 5 to 2
               const actualDistance = Math.hypot(newX - other.x, newY - other.y);
               if (actualDistance < minDistance) {
                 canMove = false;
