@@ -1822,11 +1822,16 @@ speedSlider.parentNode.appendChild(speed2000Btn);
 // Show AD toggle
 let showAD = false;
 const showADBtn = document.getElementById('showADBtn');
-showADBtn.onclick = () => {
-  showAD = !showAD;
-  showADBtn.textContent = showAD ? 'Hide AD' : 'Show AD';
-  console.log('Show AD toggled:', showAD);
-};
+if (showADBtn) {
+  showADBtn.onclick = () => {
+    showAD = !showAD;
+    showADBtn.textContent = showAD ? 'Hide AD' : 'Show AD';
+    console.log('Show AD toggled:', showAD, 'Button text:', showADBtn.textContent);
+  };
+  console.log('Show AD button found and event listener attached');
+} else {
+  console.error('Show AD button not found!');
+}
 let showFitness = false;
 const showFitnessBtn = document.getElementById('showFitnessBtn');
 showFitnessBtn.onclick = () => {
@@ -3077,18 +3082,23 @@ function gameLoop(timestamp) {
       
       // Draw AD above Caitlyn's head if toggle is enabled
       if (showAD) {
-        console.log('Drawing AD for Caitlyn', c.team, 'showAD =', showAD);
+        console.log('Drawing AD for Caitlyn', c.team, 'showAD =', showAD, 'c.x =', c.x, 'c.y =', c.y);
         try {
           const baseAD = c.getAD();
           const bonusAD = c.getBonusAD();
           const totalAD = baseAD + bonusAD;
           console.log(`Caitlyn ${c.team} AD: base=${baseAD}, bonus=${bonusAD}, total=${totalAD}`);
+          
+          // Draw a background rectangle to make text more visible
           ctx.save();
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(c.x - 30, c.y - CAITLYN_RADIUS - 35, 60, 20);
+          
           ctx.fillStyle = '#ffd700';
-          ctx.font = 'bold 14px Arial';
+          ctx.font = 'bold 16px Arial';
           ctx.textAlign = 'center';
           ctx.shadowColor = 'black';
-          ctx.shadowBlur = 2;
+          ctx.shadowBlur = 3;
           ctx.fillText(`${totalAD} AD`, c.x, c.y - CAITLYN_RADIUS - 25);
           ctx.restore();
         } catch (error) {
