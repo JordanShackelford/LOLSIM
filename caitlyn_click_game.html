@@ -3080,6 +3080,18 @@ unzoomBtn.onclick = () => {
 };
 uiDiv.appendChild(unzoomBtn);
 
+// Add Edit Mode toggle for minion pathing visualization
+const editModeBtn = document.createElement('button');
+editModeBtn.textContent = 'Edit Mode: OFF';
+editModeBtn.style.marginLeft = '10px';
+editModeBtn.style.marginTop = '10px';
+let showMinionPaths = false;
+editModeBtn.onclick = () => {
+  showMinionPaths = !showMinionPaths;
+  editModeBtn.textContent = showMinionPaths ? 'Edit Mode: ON' : 'Edit Mode: OFF';
+};
+uiDiv.appendChild(editModeBtn);
+
 // In gameLoop, before drawing, handle zoom and camera follow
 let cameraX = 0, cameraY = 0, cameraZoom = 1;
 
@@ -3176,9 +3188,61 @@ function gameLoop(timestamp) {
       ctx.globalAlpha = 1;
       ctx.restore();
     }
+
+    // Function to draw minion pathing lines
+    function drawMinionPaths(ctx) {
+      if (!showMinionPaths) return;
+      
+      ctx.save();
+      ctx.strokeStyle = '#FFD700'; // Gold color for paths
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8;
+      
+      // Draw paths for each lane
+      for (const [laneName, waypoints] of Object.entries(LANE_WAYPOINTS)) {
+        if (waypoints.length < 2) continue;
+        
+        ctx.beginPath();
+        ctx.moveTo(waypoints[0].x, waypoints[0].y);
+        
+        for (let i = 1; i < waypoints.length; i++) {
+          ctx.lineTo(waypoints[i].x, waypoints[i].y);
+        }
+        
+        ctx.stroke();
+        
+        // Draw waypoint markers
+        ctx.fillStyle = '#FFD700';
+        for (let i = 0; i < waypoints.length; i++) {
+          const wp = waypoints[i];
+          ctx.beginPath();
+          ctx.arc(wp.x, wp.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Add waypoint number
+          ctx.fillStyle = '#000';
+          ctx.font = 'bold 12px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(i.toString(), wp.x, wp.y + 4);
+          ctx.fillStyle = '#FFD700';
+        }
+        
+        // Add lane label
+        const midPoint = waypoints[Math.floor(waypoints.length / 2)];
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(laneName.toUpperCase(), midPoint.x, midPoint.y - 20);
+        ctx.fillStyle = '#FFD700';
+      }
+      
+      ctx.restore();
+    }
+    
     // ... existing code ...
     // In the main game rendering loop, at the very start (before drawing units):
     drawMapOverlay(ctx);
+    drawMinionPaths(ctx);
     // ... existing code ...
 
     // Draw bushes
