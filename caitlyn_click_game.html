@@ -1980,20 +1980,32 @@ class CaitlynAI {
 let mutationRateSlider = document.getElementById('mutationRate');
 let attackBiasSlider = document.getElementById('attackBias');
 let speedSlider = document.getElementById('speed');
-const speed2000Btn = document.createElement('button');
-speed2000Btn.textContent = '2000x';
-speed2000Btn.style.marginLeft = '8px';
-speed2000Btn.style.fontWeight = 'bold';
-speed2000Btn.style.background = '#333';
-speed2000Btn.style.color = '#fff';
-speed2000Btn.style.border = '1px solid #888';
-speed2000Btn.style.borderRadius = '4px';
-speed2000Btn.style.font = '12px monospace';
-speed2000Btn.style.padding = '2px 8px';
-speed2000Btn.onclick = () => {
-  speedSlider.value = 2000;
-};
-speedSlider.parentNode.appendChild(speed2000Btn);
+// Create speed buttons for different speeds
+const speedButtons = [
+  { text: '2000x', value: 2000 },
+  { text: '5000x', value: 5000 },
+  { text: '10000x', value: 10000 },
+  { text: '20000x', value: 20000 },
+  { text: '50000x', value: 50000 }
+];
+
+speedButtons.forEach(btn => {
+  const speedBtn = document.createElement('button');
+  speedBtn.textContent = btn.text;
+  speedBtn.style.marginLeft = '8px';
+  speedBtn.style.fontWeight = 'bold';
+  speedBtn.style.background = '#333';
+  speedBtn.style.color = '#fff';
+  speedBtn.style.border = '1px solid #888';
+  speedBtn.style.borderRadius = '4px';
+  speedBtn.style.font = '12px monospace';
+  speedBtn.style.padding = '2px 8px';
+  speedBtn.onclick = () => {
+    speedSlider.value = btn.value;
+    console.log(`Speed set to ${btn.value}x`);
+  };
+  speedSlider.parentNode.appendChild(speedBtn);
+});
 
 // Show AD toggle
 let showAD = false;
@@ -3414,8 +3426,25 @@ let dragWaypointIndex = -1;
 // In gameLoop, before drawing, handle zoom and camera follow
 let cameraX = 0, cameraY = 0, cameraZoom = 1;
 
+// Performance monitoring
+let frameCount = 0;
+let lastFPS = 0;
+let lastFPSTime = 0;
+
 function gameLoop(timestamp) {
   try {
+    // FPS monitoring
+    frameCount++;
+    if (timestamp - lastFPSTime >= 1000) {
+      lastFPS = frameCount;
+      frameCount = 0;
+      lastFPSTime = timestamp;
+      
+      // Log performance every 5 seconds
+      if (Math.floor(timestamp / 1000) % 5 === 0) {
+        console.log(`FPS: ${lastFPS}, Speed: ${parseFloat(speedSlider.value)}x`);
+      }
+    }
     if (justReset) {
       justReset = false;
       // Always re-initialize Caitlyns (including Zed) on reset
