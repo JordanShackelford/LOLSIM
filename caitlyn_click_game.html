@@ -141,6 +141,14 @@ const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
 // Item shop
 const ITEM_SHOP = [
   {
+    name: 'Infinity Edge',
+    cost: 3000,
+    ad: 70,
+    crit: 25,
+    icon: 'infinityedge.png',
+    stackable: false
+  },
+  {
     name: 'BF Sword',
     cost: 1500,
     ad: 40,
@@ -821,48 +829,61 @@ class CaitlynAI {
     }
     // If at base and can buy, buy items if enough gold
     if (this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) < NEXUS_RADIUS + 10) {
+      const infinityEdge = ITEM_SHOP.find(item => item.name === 'Infinity Edge');
       const bfSword = ITEM_SHOP.find(item => item.name === 'BF Sword');
       const cloakOfAgility = ITEM_SHOP.find(item => item.name === 'Cloak of Agility');
       const longSword = ITEM_SHOP.find(item => item.name === 'Long Sword');
       
-      // Check if Caitlyn has a BF Sword
+      // Check if Caitlyn has required items
       const hasBFSword = this.items.some(item => item.name === 'BF Sword');
+      const hasCloakOfAgility = this.items.some(item => item.name === 'Cloak of Agility');
       
-      // First, try to craft BF Sword from Long Swords
-      const longSwordCount = this.items.filter(item => item.name === 'Long Sword').length;
-      if (longSwordCount >= 2 && this.gold >= 500) {
-        // Remove 2 Long Swords and add BF Sword
-        let removed = 0;
-        this.items = this.items.filter(item => {
-          if (item.name === 'Long Sword' && removed < 2) {
-            removed++;
-            return false; // Remove this Long Sword
-          }
-          return true; // Keep other items
-        });
+      // First, try to craft Infinity Edge from BF Sword + Cloak of Agility
+      if (hasBFSword && hasCloakOfAgility && this.gold >= 900) {
+        // Remove BF Sword and Cloak of Agility, add Infinity Edge
+        this.items = this.items.filter(item => item.name !== 'BF Sword' && item.name !== 'Cloak of Agility');
         
-        this.gold -= 500;
-        this.items.push(bfSword);
-        this.goldSpent += 500;
-        console.log(`Caitlyn (team ${this.team}) crafted BF Sword from 2 Long Swords + 500 gold`);
-      } else if (hasBFSword && cloakOfAgility && this.gold >= cloakOfAgility.cost) {
-        // If they have BF Sword, prioritize Cloak of Agility
-        this.gold -= cloakOfAgility.cost;
-        this.items.push(cloakOfAgility);
-        this.goldSpent += cloakOfAgility.cost;
-        console.log(`Caitlyn (team ${this.team}) bought Cloak of Agility for ${cloakOfAgility.cost} gold`);
-      } else if (bfSword && this.gold >= bfSword.cost) {
-        // Buy BF Sword directly if we can afford it
-        this.gold -= bfSword.cost;
-        this.items.push(bfSword);
-        this.goldSpent += bfSword.cost;
-        console.log(`Caitlyn (team ${this.team}) bought BF Sword for ${bfSword.cost} gold`);
-      } else if (longSword) {
-        // Buy Long Swords with remaining gold
-        while (this.gold >= longSword.cost) {
-          this.gold -= longSword.cost;
-          this.items.push(longSword);
-          this.goldSpent += longSword.cost;
+        this.gold -= 900;
+        this.items.push(infinityEdge);
+        this.goldSpent += 900;
+        console.log(`Caitlyn (team ${this.team}) crafted Infinity Edge from BF Sword + Cloak of Agility + 900 gold`);
+      } else {
+        // First, try to craft BF Sword from Long Swords
+        const longSwordCount = this.items.filter(item => item.name === 'Long Sword').length;
+        if (longSwordCount >= 2 && this.gold >= 500) {
+          // Remove 2 Long Swords and add BF Sword
+          let removed = 0;
+          this.items = this.items.filter(item => {
+            if (item.name === 'Long Sword' && removed < 2) {
+              removed++;
+              return false; // Remove this Long Sword
+            }
+            return true; // Keep other items
+          });
+          
+          this.gold -= 500;
+          this.items.push(bfSword);
+          this.goldSpent += 500;
+          console.log(`Caitlyn (team ${this.team}) crafted BF Sword from 2 Long Swords + 500 gold`);
+        } else if (hasBFSword && cloakOfAgility && this.gold >= cloakOfAgility.cost) {
+          // If they have BF Sword, prioritize Cloak of Agility
+          this.gold -= cloakOfAgility.cost;
+          this.items.push(cloakOfAgility);
+          this.goldSpent += cloakOfAgility.cost;
+          console.log(`Caitlyn (team ${this.team}) bought Cloak of Agility for ${cloakOfAgility.cost} gold`);
+        } else if (bfSword && this.gold >= bfSword.cost) {
+          // Buy BF Sword directly if we can afford it
+          this.gold -= bfSword.cost;
+          this.items.push(bfSword);
+          this.goldSpent += bfSword.cost;
+          console.log(`Caitlyn (team ${this.team}) bought BF Sword for ${bfSword.cost} gold`);
+        } else if (longSword) {
+          // Buy Long Swords with remaining gold
+          while (this.gold >= longSword.cost) {
+            this.gold -= longSword.cost;
+            this.items.push(longSword);
+            this.goldSpent += longSword.cost;
+          }
         }
       }
       this.canBuy = false;
