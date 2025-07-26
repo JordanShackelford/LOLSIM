@@ -22,7 +22,7 @@
 <div id="ui">
   <label>Mutation Rate: <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1" /></label><br />
   <label>Attack Bias: <input type="range" id="attackBias" min="-1" max="1" step="0.05" value="0" /></label><br />
-  <label>Speed: <input type="range" id="speed" min="1" max="20" step="0.1" value="1.0" /></label><br />
+  <label>Speed: <input type="range" id="speed" min="1" max="100000" step="1" value="1.0" /></label><br />
   <button id="speed2000Btn" style="margin-left:8px;">2000x</button>
   <button id="showADBtn" style="margin-left:8px;">Show AD</button>
   <button id="showFitnessBtn" style="margin-left:8px;">Show Fitness</button>
@@ -2002,7 +2002,19 @@ speedButtons.forEach(btn => {
   speedBtn.style.padding = '2px 8px';
   speedBtn.onclick = () => {
     speedSlider.value = btn.value;
-    console.log(`Speed set to ${btn.value}x`);
+    console.log(`Speed set to ${btn.value}x, actual slider value: ${speedSlider.value}`);
+    
+    // Force update the display
+    const speedDisplay = document.getElementById('speedDisplay') || (() => {
+      const div = document.createElement('div');
+      div.id = 'speedDisplay';
+      div.style.color = 'white';
+      div.style.marginTop = '5px';
+      div.style.fontSize = '12px';
+      speedSlider.parentNode.appendChild(div);
+      return div;
+    })();
+    speedDisplay.textContent = `Current Speed: ${speedSlider.value}x`;
   };
   speedSlider.parentNode.appendChild(speedBtn);
 });
@@ -3442,7 +3454,14 @@ function gameLoop(timestamp) {
       
       // Log performance every 5 seconds
       if (Math.floor(timestamp / 1000) % 5 === 0) {
-        console.log(`FPS: ${lastFPS}, Speed: ${parseFloat(speedSlider.value)}x`);
+        const currentSpeed = parseFloat(speedSlider.value);
+        console.log(`FPS: ${lastFPS}, Speed: ${currentSpeed}x, Delta: ${((timestamp - lastTime) / 1000) * currentSpeed}`);
+        
+        // Update speed display
+        const speedDisplay = document.getElementById('speedDisplay');
+        if (speedDisplay) {
+          speedDisplay.textContent = `Current Speed: ${currentSpeed}x | FPS: ${lastFPS}`;
+        }
       }
     }
     if (justReset) {
