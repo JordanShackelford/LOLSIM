@@ -2022,7 +2022,7 @@ showZedBtn.onclick = () => {
 };
 let statsDiv = document.getElementById('stats');
 
-let generation = 1;
+let generation = 0; // Start at 0 for proper indexing
 var caitlyns = [];
 let projectiles = [];
 let basicProjectiles = [];
@@ -3424,7 +3424,10 @@ function gameLoop(timestamp) {
       return;
     }
     if (!lastTime) lastTime = timestamp;
-    if (generationStartTime === null) generationStartTime = timestamp;
+    if (generationStartTime === null) {
+      generationStartTime = timestamp;
+      console.log(`Starting generation ${generation} at timestamp ${timestamp}`);
+    }
     const delta = ((timestamp - lastTime) / 1000) * parseFloat(speedSlider.value);
     lastTime = timestamp;
     const gameSeconds = (timestamp - generationStartTime) / 1000;
@@ -3819,6 +3822,11 @@ function gameLoop(timestamp) {
         console.log(`Team ${t} avgFitness: ${teamAvgFitness[t].toFixed(1)}`);
       }
       
+      console.log(`Storing metrics for generation ${generation} (inactivity):`, {
+        avgFitness: teamAvgFitness,
+        wins: teamWins,
+        avgDPM: teamAvgDPM
+      });
       teamMetricsHistory.push({
         generation,
         wins: teamWins.slice(),
@@ -3828,6 +3836,7 @@ function gameLoop(timestamp) {
         avgRank: teamAvgRank.slice(),
         avgFitness: teamAvgFitness.slice()
       });
+      console.log(`teamMetricsHistory now has ${teamMetricsHistory.length} entries`);
       updateTeamMetricsChart();
       if (winner) {
         saveBrain(winner.brain);
@@ -3861,8 +3870,9 @@ function gameLoop(timestamp) {
     }
     // Restore original reset logic: all Caitlyns dead
     const aliveCaitlyns = caitlyns.filter(c => c.hp > 0 && !c.dead);
-    console.log(`Game loop: ${caitlyns.length} total Caitlyns, ${aliveCaitlyns.length} alive`);
+    console.log(`Game loop: ${caitlyns.length} total Caitlyns, ${aliveCaitlyns.length} alive, generation ${generation}`);
     if (aliveCaitlyns.length === 0) {
+      console.log(`Generation ${generation} ending - all Caitlyns dead`);
       // End generation: pass on genes of highest-grade Caitlyn
       for (const c of caitlyns) {
         c.unspentGold = c.gold;
@@ -3927,6 +3937,11 @@ function gameLoop(timestamp) {
         teamAvgFitness[t] = avgFitness;
         console.log(`Team ${t} avgFitness (all dead): ${avgFitness.toFixed(1)}`);
       }
+      console.log(`Storing metrics for generation ${generation} (all dead):`, {
+        avgFitness: teamAvgFitness,
+        wins: teamWins,
+        avgDPM: teamAvgDPM
+      });
       teamMetricsHistory.push({
         generation,
         wins: teamWins.slice(),
@@ -3936,6 +3951,7 @@ function gameLoop(timestamp) {
         avgRank: teamAvgRank.slice(),
         avgFitness: teamAvgFitness.slice()
       });
+      console.log(`teamMetricsHistory now has ${teamMetricsHistory.length} entries`);
       updateTeamMetricsChart();
       if (winner) {
         saveBrain(winner.brain);
