@@ -1746,6 +1746,7 @@ const showADBtn = document.getElementById('showADBtn');
 showADBtn.onclick = () => {
   showAD = !showAD;
   showADBtn.textContent = showAD ? 'Hide AD' : 'Show AD';
+  console.log('Show AD toggled:', showAD);
 };
 let showFitness = false;
 const showFitnessBtn = document.getElementById('showFitnessBtn');
@@ -2951,6 +2952,7 @@ function gameLoop(timestamp) {
       
       // Draw AD above Caitlyn's head if toggle is enabled
       if (showAD) {
+        console.log('Drawing AD for Caitlyn', c.team, 'showAD =', showAD);
         try {
           const baseAD = c.getAD();
           const bonusAD = c.getBonusAD();
