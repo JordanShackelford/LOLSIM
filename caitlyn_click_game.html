@@ -38,6 +38,12 @@ const CANVAS_HEIGHT = 800;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Load wolf image for jungle camps
+const wolfImg = new Image();
+wolfImg.src = 'wolf.png';
+let wolfImgLoaded = false;
+wolfImg.onload = () => { wolfImgLoaded = true; };
+
 // Wild Rift map: 13,000 units wide = 1200px
 const GAME_UNIT_TO_PX = CANVAS_WIDTH / 13000; // ≈ 0.0923 px per unit
 
@@ -198,6 +204,94 @@ const TRAP_TRIGGER_RADIUS_UNITS = 67.5;
 const TRAP_ROOT_DURATION = 1.5; // seconds
 const TRAP_REVEAL_DURATION = 3; // seconds
 const TRAP_MARK_DURATION = 2.5; // seconds
+
+// === JUNGLE CAMPS SYSTEM ===
+const JUNGLE_CAMP_TYPES = {
+  red:    { name: 'Red Buff',    color: '#c33', radius: 28, maxHp: 3000 },
+  blue:   { name: 'Blue Buff',   color: '#39f', radius: 28, maxHp: 3000 },
+  raptors:{ name: 'Raptors',     color: '#fa0', radius: 22, maxHp: 1800 },
+  krugs:  { name: 'Krugs',       color: '#b97a57', radius: 24, maxHp: 2000 },
+  wolves: { name: 'Wolves',      color: '#7ad', radius: 22, maxHp: 1600 },
+  gromp:  { name: 'Gromp',       color: '#4a8', radius: 26, maxHp: 2200 }
+};
+
+const JUNGLE_CAMP_SPAWNS = [
+  // Blue side
+  { type: 'red',    x: 250,  y: 650 },
+  { type: 'blue',   x: 250,  y: 150 },
+  { type: 'raptors',x: 400,  y: 500 },
+  { type: 'krugs',  x: 150,  y: 750 },
+  { type: 'wolves', x: 400,  y: 250 },
+  { type: 'gromp',  x: 150,  y: 350 },
+  // Red side
+  { type: 'red',    x: 950,  y: 150 },
+  { type: 'blue',   x: 950,  y: 650 },
+  { type: 'raptors',x: 800,  y: 300 },
+  { type: 'krugs',  x: 1050, y: 50  },
+  { type: 'wolves', x: 800,  y: 550 },
+  { type: 'gromp',  x: 1050, y: 450 }
+];
+
+class JungleCamp {
+  constructor(type, x, y) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.maxHp = JUNGLE_CAMP_TYPES[type].maxHp;
+    this.hp = this.maxHp;
+    this.radius = JUNGLE_CAMP_TYPES[type].radius;
+    this.color = JUNGLE_CAMP_TYPES[type].color;
+    this.name = JUNGLE_CAMP_TYPES[type].name;
+    this.respawnTimer = 0;
+    this.alive = true;
+  }
+  
+  update(delta) {
+    if (!this.alive) {
+      this.respawnTimer -= delta;
+      if (this.respawnTimer <= 0) {
+        this.hp = this.maxHp;
+        this.alive = true;
+      }
+    }
+  }
+  
+  clear() {
+    this.alive = false;
+    this.respawnTimer = 90; // 90 seconds respawn
+  }
+  
+  draw(ctx) {
+    if (!this.alive) return;
+    ctx.save();
+    if (this.type === 'wolves' && wolfImgLoaded) {
+      ctx.drawImage(wolfImg, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+    } else {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#222';
+      ctx.stroke();
+    }
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.name, this.x, this.y - this.radius - 8);
+    ctx.font = '12px Arial';
+    ctx.fillText(Math.round(this.hp), this.x, this.y + 5);
+    ctx.restore();
+  }
+}
+
+let jungleCamps = [];
+function spawnAllJungleCamps() {
+  jungleCamps = JUNGLE_CAMP_SPAWNS.map(spawn => new JungleCamp(spawn.type, spawn.x, spawn.y));
+}
+spawnAllJungleCamps();
 const TRAP_HEADSHOT_BONUS = 1.2; // +120% headshot bonus
 const TRAP_HEADSHOT_RANGE_MULT = 2; // double range
 
@@ -3117,6 +3211,10 @@ function gameLoop(timestamp) {
         minionSpawnTimers[t] = 0;
       }
     }
+    // Update/draw jungle camps
+    jungleCamps.forEach(camp => camp.update(delta));
+    jungleCamps.forEach(camp => camp.draw(ctx));
+    
     // Update/draw minions
     minions.forEach(m => m.update(delta, minions, caitlyns, nexuses, turrets, gameMinutes));
     minions = minions.filter(m => m.alive);
