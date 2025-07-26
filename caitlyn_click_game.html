@@ -2580,8 +2580,36 @@ class Minion {
       }
       this.attackTimer = 1.0 / this.attackSpeed;
     }
-    // Move if not attacking
-    if (!this.target) {
+    // Move toward target or follow path
+    if (this.target) {
+      // Move toward current target
+      const dx = this.target.x - this.x;
+      const dy = this.target.y - this.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > this.range) {
+        // Move toward target if not in attack range
+        const newX = this.x + (dx / dist) * this.moveSpeed * delta;
+        const newY = this.y + (dy / dist) * this.moveSpeed * delta;
+        
+        // Check for collision with other minions
+        let canMove = true;
+        for (const other of minions) {
+          if (other !== this && other.alive) {
+            const minDistance = this.radius + other.radius + 2;
+            const actualDistance = Math.hypot(newX - other.x, newY - other.y);
+            if (actualDistance < minDistance) {
+              canMove = false;
+              break;
+            }
+          }
+        }
+        
+        if (canMove) {
+          this.x = newX;
+          this.y = newY;
+        }
+      }
+    } else {
       // Path following: move toward next waypoint
       const nextIdx = this.pathIdx + 1;
       if (nextIdx < this.path.length) {
