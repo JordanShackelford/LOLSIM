@@ -2951,9 +2951,12 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Update the HTML timer element
-    const minutes = Math.floor(gameMinutes);
-    const seconds = Math.floor(gameSeconds % 60);
+    // Update the HTML timer element (using game speed)
+    const gameSpeed = parseFloat(speedSlider.value);
+    const adjustedGameSeconds = gameSeconds * gameSpeed;
+    const adjustedGameMinutes = adjustedGameSeconds / 60;
+    const minutes = Math.floor(adjustedGameMinutes);
+    const seconds = Math.floor(adjustedGameSeconds % 60);
     const timerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     const timerElement = document.getElementById('gameTimer');
     if (timerElement) {
