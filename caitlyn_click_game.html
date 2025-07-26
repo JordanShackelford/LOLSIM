@@ -30,6 +30,7 @@
   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
 </div>
 <div id="teamGraphUI"></div>
+<div id="gameTimer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: #ffff00; font-size: 36px; font-weight: bold; padding: 15px 30px; border-radius: 10px; z-index: 1000; font-family: Arial;">0:00</div>
 <canvas id="gameCanvas" width="1200" height="800"></canvas>
 <script>
 const CANVAS_WIDTH = 1200;
@@ -2950,27 +2951,14 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw game timer in the center of the screen
+    // Update the HTML timer element
     const minutes = Math.floor(gameMinutes);
     const seconds = Math.floor(gameSeconds % 60);
     const timerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    
-    console.log(`Game timer: ${timerText} (${gameSeconds}s total) - Drawing at center: ${CANVAS_WIDTH/2}, ${CANVAS_HEIGHT/2}`);
-    
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for UI elements
-    
-    // Draw background rectangle for better visibility
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(CANVAS_WIDTH / 2 - 60, CANVAS_HEIGHT / 2 - 30, 120, 60);
-    
-    ctx.fillStyle = '#ffff00'; // Yellow color
-    ctx.font = 'bold 36px Arial';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = 'black';
-    ctx.shadowBlur = 5;
-    ctx.fillText(timerText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
-    ctx.restore();
+    const timerElement = document.getElementById('gameTimer');
+    if (timerElement) {
+      timerElement.textContent = timerText;
+    }
 
     // Camera transform: set before any drawing
     if (window.zoomToBestCaitlyn) {
