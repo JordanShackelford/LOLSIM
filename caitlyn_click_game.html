@@ -858,12 +858,13 @@ class CaitlynAI {
         console.log(`Caitlyn ${this.team} targeting minion ${target.id} at distance ${Math.hypot(target.x - this.x, target.y - this.y)}`);
       }
     } else if (targetType === 1) {
-      // Turret
-      let enemyTurrets = turrets.filter(t => t.team !== this.team);
-      if (enemyTurrets.length > 0) {
-        // Closest enemy turret
-        enemyTurrets.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
-        target = enemyTurrets[0];
+      // Turret - only target available turrets (first in each lane)
+      let availableTurrets = getAvailableTurrets(this.team);
+      if (availableTurrets.length > 0) {
+        // Closest available enemy turret
+        availableTurrets.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = availableTurrets[0];
+        console.log(`Caitlyn ${this.team} targeting turret in ${target.lane} lane (order ${target.order}) at distance ${Math.hypot(target.x - this.x, target.y - this.y)}`);
       }
     } else if (targetType === 2) {
       // Player
@@ -873,13 +874,17 @@ class CaitlynAI {
         target = enemies[0];
       }
     } else if (targetType === 3) {
-      // Nexus - target enemy nexus if no other targets are available
-      const enemyNexus = nexuses[1 - this.team];
-      const distToNexus = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
-      console.log(`Caitlyn ${this.team} considering nexus: dist=${distToNexus}, attackRange=${this.attackRange}, NEXUS_RADIUS=${NEXUS_RADIUS}`);
-      if (distToNexus <= this.attackRange + NEXUS_RADIUS) {
-        target = enemyNexus;
-        console.log(`Caitlyn ${this.team} targeting enemy nexus at distance ${distToNexus}`);
+      // Nexus - only target if at least one lane is completely cleared
+      if (canTargetNexus(this.team)) {
+        const enemyNexus = nexuses[1 - this.team];
+        const distToNexus = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
+        console.log(`Caitlyn ${this.team} considering nexus: dist=${distToNexus}, attackRange=${this.attackRange}, NEXUS_RADIUS=${NEXUS_RADIUS}`);
+        if (distToNexus <= this.attackRange + NEXUS_RADIUS) {
+          target = enemyNexus;
+          console.log(`Caitlyn ${this.team} targeting enemy nexus at distance ${distToNexus}`);
+        }
+      } else {
+        console.log(`Caitlyn ${this.team} cannot target nexus - no lanes fully cleared`);
       }
     }
     const [moveX, moveY, attack, useQ, buy, recall, trap, useE, useR, qAngle, rTarget] = out;
@@ -2812,25 +2817,26 @@ class Minion {
         }
       }
     }
-    // 3. Enemy turret in range
+    // 3. Enemy turret in range (only available turrets)
     if (!bestTarget) {
-      for (const turret of turrets) {
-        if (turret.team !== this.team && turret.hp > 0) {
-          const dist = Math.hypot(this.x - turret.x, this.y - turret.y);
-          if (dist < this.range + 24 && dist < bestDist) {
-            bestTarget = turret;
-            bestDist = dist;
-          }
+      const availableTurrets = getAvailableTurrets(this.team);
+      for (const turret of availableTurrets) {
+        const dist = Math.hypot(this.x - turret.x, this.y - turret.y);
+        if (dist < this.range + 24 && dist < bestDist) {
+          bestTarget = turret;
+          bestDist = dist;
         }
       }
     }
-    // 4. Enemy Nexus in range (only when very close)
+    // 4. Enemy Nexus in range (only when lane is cleared)
     if (!bestTarget) {
-      const enemyNexus = nexuses[1 - this.team];
-      const dist = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
-      if (dist < this.range) {
-        bestTarget = enemyNexus;
-        bestDist = dist;
+      if (canTargetNexus(this.team)) {
+        const enemyNexus = nexuses[1 - this.team];
+        const dist = Math.hypot(this.x - enemyNexus.x, this.y - enemyNexus.y);
+        if (dist < this.range) {
+          bestTarget = enemyNexus;
+          bestDist = dist;
+        }
       }
     }
     this.target = bestTarget;
@@ -3135,10 +3141,12 @@ class Nexus {
 
 // Turret class: only insta-kill Caitlyns, not minions
 class Turret {
-  constructor(x, y, team) {
+  constructor(x, y, team, lane = null, order = 0) {
     this.x = x;
     this.y = y;
     this.team = team;
+    this.lane = lane;
+    this.order = order;
     this.range = TURRET_RANGE;
     this.hp = 1000; // Optional: turrets can have HP if you want minions to attack them
     this.maxHp = 1000;
@@ -3246,37 +3254,37 @@ const LANE_WAYPOINTS = {
   ]
 };
 
-// Turret positions (aligned to lanes)
+// Turret positions organized by lanes (must be destroyed in order)
 const TURRET_POSITIONS = [
   // Blue team turrets
   [
-    // Bot lane (square contour)
-    { x: 200, y: CANVAS_HEIGHT - 200 },
-    { x: 400, y: CANVAS_HEIGHT - 400 },
-    { x: 800, y: CANVAS_HEIGHT - 600 },
-    // Top lane (square contour)
-    { x: 0 + NEXUS_RADIUS, y: 200 },
-    { x: 0 + NEXUS_RADIUS, y: 0 + NEXUS_RADIUS },
-    { x: 200, y: 0 + NEXUS_RADIUS },
-    // Mid lane (straight through center)
-    { x: CANVAS_WIDTH / 4, y: CANVAS_HEIGHT * 3 / 4 },
-    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
-    { x: CANVAS_WIDTH * 3 / 4, y: CANVAS_HEIGHT / 4 }
+    // Bot lane (from base to enemy base)
+    { x: 200, y: CANVAS_HEIGHT - 200, lane: 'bot', order: 0 },
+    { x: 400, y: CANVAS_HEIGHT - 400, lane: 'bot', order: 1 },
+    { x: 800, y: CANVAS_HEIGHT - 600, lane: 'bot', order: 2 },
+    // Top lane (from base to enemy base)
+    { x: 200, y: 200, lane: 'top', order: 0 },
+    { x: 400, y: 400, lane: 'top', order: 1 },
+    { x: 800, y: 600, lane: 'top', order: 2 },
+    // Mid lane (from base to enemy base)
+    { x: CANVAS_WIDTH / 4, y: CANVAS_HEIGHT * 3 / 4, lane: 'mid', order: 0 },
+    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, lane: 'mid', order: 1 },
+    { x: CANVAS_WIDTH * 3 / 4, y: CANVAS_HEIGHT / 4, lane: 'mid', order: 2 }
   ],
   // Red team turrets
   [
-    // Bot lane (square contour)
-    { x: CANVAS_WIDTH - 200, y: 200 },
-    { x: CANVAS_WIDTH - 400, y: 400 },
-    { x: CANVAS_WIDTH - 800, y: 600 },
-    // Top lane (square contour)
-    { x: CANVAS_WIDTH - NEXUS_RADIUS, y: CANVAS_HEIGHT - 200 },
-    { x: CANVAS_WIDTH - NEXUS_RADIUS, y: CANVAS_HEIGHT - NEXUS_RADIUS },
-    { x: CANVAS_WIDTH - 200, y: CANVAS_HEIGHT - NEXUS_RADIUS },
-    // Mid lane (straight through center)
-    { x: CANVAS_WIDTH * 3 / 4, y: CANVAS_HEIGHT / 4 },
-    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
-    { x: CANVAS_WIDTH / 4, y: CANVAS_HEIGHT * 3 / 4 }
+    // Bot lane (from base to enemy base)
+    { x: CANVAS_WIDTH - 200, y: 200, lane: 'bot', order: 0 },
+    { x: CANVAS_WIDTH - 400, y: 400, lane: 'bot', order: 1 },
+    { x: CANVAS_WIDTH - 800, y: 600, lane: 'bot', order: 2 },
+    // Top lane (from base to enemy base)
+    { x: CANVAS_WIDTH - 200, y: CANVAS_HEIGHT - 200, lane: 'top', order: 0 },
+    { x: CANVAS_WIDTH - 400, y: CANVAS_HEIGHT - 400, lane: 'top', order: 1 },
+    { x: CANVAS_WIDTH - 800, y: CANVAS_HEIGHT - 600, lane: 'top', order: 2 },
+    // Mid lane (from base to enemy base)
+    { x: CANVAS_WIDTH * 3 / 4, y: CANVAS_HEIGHT / 4, lane: 'mid', order: 0 },
+    { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, lane: 'mid', order: 1 },
+    { x: CANVAS_WIDTH / 4, y: CANVAS_HEIGHT * 3 / 4, lane: 'mid', order: 2 }
   ]
 ];
 
@@ -3297,13 +3305,68 @@ let turretProjectiles = [];
 // Add global array for net projectiles
 let netProjectiles = [];
 
+// Function to get available turrets for a team (turrets that can be targeted)
+function getAvailableTurrets(attackingTeam) {
+  const defendingTeam = 1 - attackingTeam;
+  const availableTurrets = [];
+  
+  // Group turrets by lane
+  const laneTurrets = {};
+  for (const turret of turrets) {
+    if (turret.team === defendingTeam && turret.hp > 0 && !turret.destroyed) {
+      if (!laneTurrets[turret.lane]) {
+        laneTurrets[turret.lane] = [];
+      }
+      laneTurrets[turret.lane].push(turret);
+    }
+  }
+  
+  // For each lane, find the first available turret (lowest order)
+  for (const lane in laneTurrets) {
+    const laneTurretList = laneTurrets[lane];
+    laneTurretList.sort((a, b) => a.order - b.order);
+    if (laneTurretList.length > 0) {
+      availableTurrets.push(laneTurretList[0]);
+    }
+  }
+  
+  return availableTurrets;
+}
+
+// Function to check if nexus can be targeted (all turrets in at least one lane destroyed)
+function canTargetNexus(attackingTeam) {
+  const defendingTeam = 1 - attackingTeam;
+  
+  // Check if any lane has all turrets destroyed
+  const laneTurrets = {};
+  for (const turret of turrets) {
+    if (turret.team === defendingTeam) {
+      if (!laneTurrets[turret.lane]) {
+        laneTurrets[turret.lane] = [];
+      }
+      laneTurrets[turret.lane].push(turret);
+    }
+  }
+  
+  // Check if any lane has all turrets destroyed
+  for (const lane in laneTurrets) {
+    const laneTurretList = laneTurrets[lane];
+    const allDestroyed = laneTurretList.every(turret => turret.hp <= 0 || turret.destroyed);
+    if (allDestroyed) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 function main() {
   loadBrain();
   // Initialize turrets at game start
   turrets = [];
   for (let team = 0; team < 2; ++team) {
     for (const pos of TURRET_POSITIONS[team]) {
-      turrets.push(new Turret(pos.x, pos.y, team));
+      turrets.push(new Turret(pos.x, pos.y, team, pos.lane, pos.order));
     }
   }
   loadTurretPositions(); // <-- ensure this is called after turrets are created
@@ -3772,7 +3835,7 @@ function gameLoop(timestamp) {
       turrets = [];
       for (let team = 0; team < 2; ++team) {
         for (const pos of TURRET_POSITIONS[team]) {
-          turrets.push(new Turret(pos.x, pos.y, team));
+          turrets.push(new Turret(pos.x, pos.y, team, pos.lane, pos.order));
         }
       }
       loadTurretPositions(); // <-- ensure this is called after turrets are created
@@ -3874,7 +3937,7 @@ function gameLoop(timestamp) {
       turrets = [];
       for (let team = 0; team < 2; ++team) {
         for (const pos of TURRET_POSITIONS[team]) {
-          turrets.push(new Turret(pos.x, pos.y, team));
+          turrets.push(new Turret(pos.x, pos.y, team, pos.lane, pos.order));
         }
       }
       loadTurretPositions(); // <-- ensure this is called after turrets are created
