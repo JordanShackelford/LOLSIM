@@ -771,6 +771,13 @@ class CaitlynAI {
     let friendlyMinions = minions.filter(m => m.team === this.team && m.alive);
     let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
     
+    // 🏥 Add healing zone information
+    const ownNexus = nexuses[this.team];
+    const distToOwnNexus = Math.hypot(this.x - ownNexus.x, this.y - ownNexus.y);
+    const healingRadius = 150;
+    const inHealingZone = distToOwnNexus <= healingRadius ? 1 : 0;
+    const healingZoneProximity = Math.max(0, 1 - (distToOwnNexus / healingRadius)); // 1 if in zone, 0 if far away
+    
     // Sort by distance to Caitlyn
     friendlyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
     enemyMinions.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
@@ -790,6 +797,9 @@ class CaitlynAI {
     // Add 3 nearest enemy minions (dx, dy, hp)
     for (let i = 0; i < 3; ++i) {
       const minion = enemyMinions[i];
+      
+    // 🏥 Add healing zone inputs (2 values)
+    inputs.push(inHealingZone, healingZoneProximity);
       if (minion) {
         inputs.push((minion.x - me.x) / CANVAS_WIDTH);
         inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
@@ -1495,6 +1505,25 @@ class CaitlynAI {
     // In CaitlynAI.update, at the start of each frame, regen mana
     this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * delta);
     if (this.attackAnimTimer > 0) this.attackAnimTimer = Math.max(0, this.attackAnimTimer - delta);
+    
+    // 🏥 Healing zone around own nexus (10% HP and mana per second)
+    const ownNexus = nexuses[this.team];
+    const distToOwnNexus = Math.hypot(this.x - ownNexus.x, this.y - ownNexus.y);
+    const healingRadius = 150; // Healing zone radius
+    
+    if (distToOwnNexus <= healingRadius && !this.dead) {
+      // Heal 10% of max HP and mana per second
+      const hpHeal = this.maxHp * 0.1 * delta;
+      const manaHeal = this.maxMana * 0.1 * delta;
+      
+      this.hp = Math.min(this.maxHp, this.hp + hpHeal);
+      this.mana = Math.min(this.maxMana, this.mana + manaHeal);
+      
+      // Visual feedback: spawn healing particles
+      if (Math.random() < 0.3) { // 30% chance per frame
+        spawnParticles(this.x, this.y, '#00FF00', 3, 30, 0.5, 'heal');
+      }
+    }
   }
 
   draw() {
@@ -3316,6 +3345,17 @@ function gameLoop(timestamp) {
     turretProjectiles = turretProjectiles.filter(p => p.alive);
     // Draw nexuses above turrets
     nexuses.forEach(n => n.draw());
+    
+    // 🏥 Draw healing zones around nexuses
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#00FF00';
+    for (const nexus of nexuses) {
+      ctx.beginPath();
+      ctx.arc(nexus.x, nexus.y, 150, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
 
     caitlyns.forEach(c => {
       try {
