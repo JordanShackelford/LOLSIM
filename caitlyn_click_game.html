@@ -2950,6 +2950,21 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Draw game timer at the top of the screen
+    const minutes = Math.floor(gameMinutes);
+    const seconds = Math.floor(gameSeconds % 60);
+    const timerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for UI elements
+    ctx.fillStyle = '#ffff00'; // Yellow color
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'black';
+    ctx.shadowBlur = 3;
+    ctx.fillText(timerText, CANVAS_WIDTH / 2, 35);
+    ctx.restore();
+
     // Camera transform: set before any drawing
     if (window.zoomToBestCaitlyn) {
       const best = findBestCaitlyn();
