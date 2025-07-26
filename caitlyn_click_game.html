@@ -1393,8 +1393,8 @@ class CaitlynAI {
     }
     // Reward for standing in bush
     if (inBrush(this.x, this.y)) this.fitness += 0.01 * delta;
-    // DPM fitness: add damage per second
-    this.fitness += (this.damageDealt / 60) * delta;
+    // DPM fitness: add damage per second (but don't double-count with end-generation calculation)
+    // this.fitness += (this.damageDealt / 60) * delta;
     // Track bush time
     if (inBrush(this.x, this.y)) this.bushTime += delta;
     // Track idle time (not moving or attacking for >5s)
@@ -3688,19 +3688,19 @@ function gameLoop(timestamp) {
         c.unspentGold = c.gold;
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
-        c.fitness += c.kills * 50;
-        c.fitness += c.assists * 30;
-        c.fitness -= c.deaths * 80;
-        c.fitness += c.minionLastHits * 1;
-        c.fitness += c.turretsDestroyed * 100;
-        c.fitness += c.damageDealt * 0.1;
-        c.fitness += c.goldSpent * 0.02;
-        c.fitness -= Math.floor(c.idleTime / 5) * 10;
-        c.fitness += c.bushTime * 0.5;
-        c.fitness += c.nexusDamage * 0.2;
-        c.fitness -= c.unspentGold * 0.01;
-        // c.fitness += c.survived ? 50 : 0;
-        c.fitness += c.turretDamage * 0.05;
+        c.fitness += c.kills * 100; // Increased kill reward
+        c.fitness += c.assists * 50; // Increased assist reward
+        c.fitness -= c.deaths * 40; // Reduced death penalty
+        c.fitness += c.minionLastHits * 2; // Increased minion last hit reward
+        c.fitness += c.turretsDestroyed * 200; // Increased turret reward
+        c.fitness += c.damageDealt * 0.2; // Increased damage reward
+        c.fitness += c.goldSpent * 0.05; // Increased gold spending reward
+        c.fitness -= Math.floor(c.idleTime / 10) * 5; // Reduced idle penalty
+        c.fitness += c.bushTime * 1.0; // Increased bush time reward
+        c.fitness += c.nexusDamage * 0.5; // Increased nexus damage reward
+        c.fitness -= c.unspentGold * 0.005; // Reduced unspent gold penalty
+        c.fitness += c.survived ? 100 : 0; // Added survival bonus
+        c.fitness += c.turretDamage * 0.1; // Increased turret damage reward
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
@@ -3718,6 +3718,8 @@ function gameLoop(timestamp) {
       let teamGold = [0, 0];
       // Count wins (optional, not used for evolution)
       if (winner) teamWins[winner.team] = 1;
+      console.log(`Generation ${generation} winner (inactivity): Team ${winner?.team}, Fitness: ${winner?.fitness?.toFixed(1)}, Kills: ${winner?.kills}, Deaths: ${winner?.deaths}, Damage: ${winner?.damageDealt?.toFixed(1)}`);
+      console.log('All Caitlyns fitness (inactivity):', caitlyns.map(c => `Team${c.team}:${c.fitness.toFixed(1)}`).join(', '));
       // Calculate DPS and total damage per team
       for (let t = 0; t < NUM_TEAMS; ++t) {
         const teamCaitlyns = caitlyns.filter(c => c.team === t);
@@ -3796,19 +3798,19 @@ function gameLoop(timestamp) {
         c.unspentGold = c.gold;
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
-        c.fitness += c.kills * 50;
-        c.fitness += c.assists * 30;
-        c.fitness -= c.deaths * 80;
-        c.fitness += c.minionLastHits * 1;
-        c.fitness += c.turretsDestroyed * 100;
-        c.fitness += c.damageDealt * 0.1;
-        c.fitness += c.goldSpent * 0.02;
-        c.fitness -= Math.floor(c.idleTime / 5) * 10;
-        c.fitness += c.bushTime * 0.5;
-        c.fitness += c.nexusDamage * 0.2;
-        c.fitness -= c.unspentGold * 0.01;
-        // c.fitness += c.survived ? 50 : 0;
-        c.fitness += c.turretDamage * 0.05;
+        c.fitness += c.kills * 100; // Increased kill reward
+        c.fitness += c.assists * 50; // Increased assist reward
+        c.fitness -= c.deaths * 40; // Reduced death penalty
+        c.fitness += c.minionLastHits * 2; // Increased minion last hit reward
+        c.fitness += c.turretsDestroyed * 200; // Increased turret reward
+        c.fitness += c.damageDealt * 0.2; // Increased damage reward
+        c.fitness += c.goldSpent * 0.05; // Increased gold spending reward
+        c.fitness -= Math.floor(c.idleTime / 10) * 5; // Reduced idle penalty
+        c.fitness += c.bushTime * 1.0; // Increased bush time reward
+        c.fitness += c.nexusDamage * 0.5; // Increased nexus damage reward
+        c.fitness -= c.unspentGold * 0.005; // Reduced unspent gold penalty
+        c.fitness += c.survived ? 100 : 0; // Added survival bonus
+        c.fitness += c.turretDamage * 0.1; // Increased turret damage reward
         
         // Debug: log fitness breakdown for first few Caitlyns
         if (c.id <= 3) {
@@ -3830,6 +3832,8 @@ function gameLoop(timestamp) {
       let teamTotalDPM = [0, 0];
       let teamGold = [0, 0];
       if (winner) teamWins[winner.team] = 1;
+      console.log(`Generation ${generation} winner (all dead): Team ${winner?.team}, Fitness: ${winner?.fitness?.toFixed(1)}, Kills: ${winner?.kills}, Deaths: ${winner?.deaths}, Damage: ${winner?.damageDealt?.toFixed(1)}`);
+      console.log('All Caitlyns fitness (all dead):', caitlyns.map(c => `Team${c.team}:${c.fitness.toFixed(1)}`).join(', '));
       for (let t = 0; t < NUM_TEAMS; ++t) {
         const teamCaitlyns = caitlyns.filter(c => c.team === t);
         const dpmList = teamCaitlyns.map(c => genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0);
