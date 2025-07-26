@@ -2935,30 +2935,38 @@ function gameLoop(timestamp) {
     nexuses.forEach(n => n.draw());
 
     caitlyns.forEach(c => {
-      // Throttle movement command
-      const now = performance.now() / 1000;
-      if (now - c.lastMoveCommandTime > 0.25) {
-        const { moveX, moveY } = c.decide(caitlyns, minions, turrets);
-        c.cachedMove.x = moveX;
-        c.cachedMove.y = moveY;
-        c.lastMoveCommandTime = now;
-      }
-      const moveX = c.cachedMove.x;
-      const moveY = c.cachedMove.y;
-      c.update(caitlyns, delta, projectiles, minions, turrets);
-      c.draw();
+      try {
+        // Throttle movement command
+        const now = performance.now() / 1000;
+        if (now - c.lastMoveCommandTime > 0.25) {
+          const { moveX, moveY } = c.decide(caitlyns, minions, turrets);
+          c.cachedMove.x = moveX;
+          c.cachedMove.y = moveY;
+          c.lastMoveCommandTime = now;
+        }
+        const moveX = c.cachedMove.x;
+        const moveY = c.cachedMove.y;
+        c.update(caitlyns, delta, projectiles, minions, turrets);
+        c.draw();
       
       // Draw AD above Caitlyn's head if toggle is enabled
       if (showAD) {
-        const totalAD = c.getAD() + c.getBonusAD();
-        ctx.save();
-        ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = 'black';
-        ctx.shadowBlur = 2;
-        ctx.fillText(`${totalAD} AD`, c.x, c.y - CAITLYN_RADIUS - 25);
-        ctx.restore();
+        try {
+          const baseAD = c.getAD();
+          const bonusAD = c.getBonusAD();
+          const totalAD = baseAD + bonusAD;
+          console.log(`Caitlyn ${c.team} AD: base=${baseAD}, bonus=${bonusAD}, total=${totalAD}`);
+          ctx.save();
+          ctx.fillStyle = '#ffd700';
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'black';
+          ctx.shadowBlur = 2;
+          ctx.fillText(`${totalAD} AD`, c.x, c.y - CAITLYN_RADIUS - 25);
+          ctx.restore();
+        } catch (error) {
+          console.error('Error drawing AD for Caitlyn:', error, c);
+        }
       }
       // Draw fitness above Caitlyn's head if toggle is enabled
       if (showFitness) {
@@ -2970,6 +2978,9 @@ function gameLoop(timestamp) {
         ctx.shadowBlur = 2;
         ctx.fillText(`Fitness: ${Math.round(c.fitness)}`, c.x, c.y - CAITLYN_RADIUS - 40);
         ctx.restore();
+      }
+      } catch (error) {
+        console.error('Error updating/drawing Caitlyn:', error, c);
       }
     });
     projectiles.forEach(p => { p.update(delta); p.draw(); });
