@@ -3644,8 +3644,20 @@ function gameLoop(timestamp) {
     }
     ctx.restore();
 
+    // Track progress for debugging
+    let totalKills = 0;
+    let totalDeaths = 0;
+    let totalDamage = 0;
+    let totalMinionLastHits = 0;
+    
     caitlyns.forEach(c => {
       try {
+        // Store stats before update for progress tracking
+        const oldKills = c.kills;
+        const oldDeaths = c.deaths;
+        const oldDamage = c.damageDealt;
+        const oldMinionLastHits = c.minionLastHits;
+        
         // Throttle movement command
         const now = performance.now() / 1000;
         if (now - c.lastMoveCommandTime > 0.25) {
@@ -3658,6 +3670,21 @@ function gameLoop(timestamp) {
         const moveY = c.cachedMove.y;
         c.update(caitlyns, delta, projectiles, minions, turrets);
         c.draw();
+        
+        // Track totals
+        totalKills += c.kills;
+        totalDeaths += c.deaths;
+        totalDamage += c.damageDealt;
+        totalMinionLastHits += c.minionLastHits;
+      } catch (error) {
+        console.error('Error updating/drawing Caitlyn:', error, c);
+      }
+    });
+    
+    // Log progress every 30 seconds for debugging
+    if (Math.floor(gameSeconds) % 30 === 0 && Math.floor(gameSeconds) > 0) {
+      console.log(`Generation ${generation} progress at ${Math.floor(gameSeconds)}s: kills=${totalKills}, deaths=${totalDeaths}, damage=${Math.round(totalDamage)}, minionLastHits=${totalMinionLastHits}`);
+    }
       
       // Draw AD above Caitlyn's head if toggle is enabled
       if (showAD) {
@@ -3699,6 +3726,12 @@ function gameLoop(timestamp) {
         console.error('Error updating/drawing Caitlyn:', error, c);
       }
     });
+    
+    // Log progress every 30 seconds for debugging
+    if (Math.floor(gameSeconds) % 30 === 0 && Math.floor(gameSeconds) > 0) {
+      console.log(`Generation ${generation} progress at ${Math.floor(gameSeconds)}s: kills=${totalKills}, deaths=${totalDeaths}, damage=${Math.round(totalDamage)}, minionLastHits=${totalMinionLastHits}`);
+    }
+    
     projectiles.forEach(p => { p.update(delta); p.draw(); });
     projectiles = projectiles.filter(p => p.alive);
 
@@ -3746,10 +3779,24 @@ function gameLoop(timestamp) {
     console.log('Nexus HP check:', nexuses[0].hp, nexuses[1].hp);
     if (nexuses[0].hp <= 0 || nexuses[1].hp <= 0) {
       console.log('End-of-generation logic triggered: Nexus destroyed');
+      console.log(`=== GENERATION ${generation} FITNESS CALCULATION (INACTIVITY) ===`);
       // Composite Wild Rift-style score
       for (const c of caitlyns) {
         c.unspentGold = c.gold;
         c.survived = (c.hp > 0 && !c.dead);
+        
+        // Store original values for debugging
+        const originalKills = c.kills;
+        const originalDeaths = c.deaths;
+        const originalMinionLastHits = c.minionLastHits;
+        const originalDamageDealt = c.damageDealt;
+        const originalGoldSpent = c.goldSpent;
+        const originalIdleTime = c.idleTime;
+        const originalBushTime = c.bushTime;
+        const originalNexusDamage = c.nexusDamage;
+        const originalTurretDamage = c.turretDamage;
+        const originalTurretsDestroyed = c.turretsDestroyed;
+        
         c.fitness = 0;
         c.fitness += c.kills * 100; // Increased kill reward
         c.fitness += c.assists * 50; // Increased assist reward
@@ -3764,6 +3811,16 @@ function gameLoop(timestamp) {
         c.fitness -= c.unspentGold * 0.005; // Reduced unspent gold penalty
         c.fitness += c.survived ? 100 : 0; // Added survival bonus
         c.fitness += c.turretDamage * 0.1; // Increased turret damage reward
+        
+        // Debug: log fitness breakdown for first few Caitlyns
+        if (c.id <= 3) {
+          console.log(`Caitlyn ${c.id} (Team ${c.team}) fitness breakdown (inactivity):`);
+          console.log(`  kills=${c.kills} (${c.kills * 100}), deaths=${c.deaths} (${-c.deaths * 40}), minionLastHits=${c.minionLastHits} (${c.minionLastHits * 2})`);
+          console.log(`  damageDealt=${c.damageDealt} (${c.damageDealt * 0.2}), goldSpent=${c.goldSpent} (${c.goldSpent * 0.05}), turretsDestroyed=${c.turretsDestroyed} (${c.turretsDestroyed * 200})`);
+          console.log(`  idleTime=${c.idleTime} (${-Math.floor(c.idleTime / 10) * 5}), bushTime=${c.bushTime} (${c.bushTime * 1.0}), nexusDamage=${c.nexusDamage} (${c.nexusDamage * 0.5})`);
+          console.log(`  unspentGold=${c.unspentGold} (${-c.unspentGold * 0.005}), survived=${c.survived} (${c.survived ? 100 : 0}), turretDamage=${c.turretDamage} (${c.turretDamage * 0.1})`);
+          console.log(`  FINAL FITNESS: ${c.fitness}`);
+        }
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
@@ -3874,9 +3931,23 @@ function gameLoop(timestamp) {
     if (aliveCaitlyns.length === 0) {
       console.log(`Generation ${generation} ending - all Caitlyns dead`);
       // End generation: pass on genes of highest-grade Caitlyn
+      console.log(`=== GENERATION ${generation} FITNESS CALCULATION ===`);
       for (const c of caitlyns) {
         c.unspentGold = c.gold;
         c.survived = (c.hp > 0 && !c.dead);
+        
+        // Store original values for debugging
+        const originalKills = c.kills;
+        const originalDeaths = c.deaths;
+        const originalMinionLastHits = c.minionLastHits;
+        const originalDamageDealt = c.damageDealt;
+        const originalGoldSpent = c.goldSpent;
+        const originalIdleTime = c.idleTime;
+        const originalBushTime = c.bushTime;
+        const originalNexusDamage = c.nexusDamage;
+        const originalTurretDamage = c.turretDamage;
+        const originalTurretsDestroyed = c.turretsDestroyed;
+        
         c.fitness = 0;
         c.fitness += c.kills * 100; // Increased kill reward
         c.fitness += c.assists * 50; // Increased assist reward
@@ -3894,7 +3965,12 @@ function gameLoop(timestamp) {
         
         // Debug: log fitness breakdown for first few Caitlyns
         if (c.id <= 3) {
-          console.log(`Caitlyn ${c.id} fitness breakdown: kills=${c.kills}, deaths=${c.deaths}, minionLastHits=${c.minionLastHits}, damageDealt=${c.damageDealt}, goldSpent=${c.goldSpent}, fitness=${c.fitness}`);
+          console.log(`Caitlyn ${c.id} (Team ${c.team}) fitness breakdown:`);
+          console.log(`  kills=${c.kills} (${c.kills * 100}), deaths=${c.deaths} (${-c.deaths * 40}), minionLastHits=${c.minionLastHits} (${c.minionLastHits * 2})`);
+          console.log(`  damageDealt=${c.damageDealt} (${c.damageDealt * 0.2}), goldSpent=${c.goldSpent} (${c.goldSpent * 0.05}), turretsDestroyed=${c.turretsDestroyed} (${c.turretsDestroyed * 200})`);
+          console.log(`  idleTime=${c.idleTime} (${-Math.floor(c.idleTime / 10) * 5}), bushTime=${c.bushTime} (${c.bushTime * 1.0}), nexusDamage=${c.nexusDamage} (${c.nexusDamage * 0.5})`);
+          console.log(`  unspentGold=${c.unspentGold} (${-c.unspentGold * 0.005}), survived=${c.survived} (${c.survived ? 100 : 0}), turretDamage=${c.turretDamage} (${c.turretDamage * 0.1})`);
+          console.log(`  FINAL FITNESS: ${c.fitness}`);
         }
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
