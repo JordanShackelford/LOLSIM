@@ -921,7 +921,23 @@ class CaitlynAI {
         this.hp = CAITLYN_BASE_HP + this.getBonusHP();
         this.dead = false;
         this.lastHitBy = null; // Reset lastHitBy on respawn
-        console.log(`Caitlyn (team ${this.team}) respawned at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
+        
+        // Reset stats on respawn so fitness calculation is fair
+        this.kills = 0;
+        this.assists = 0;
+        this.deaths = 0;
+        this.minionLastHits = 0;
+        this.turretsDestroyed = 0;
+        this.damageDealt = 0;
+        this.goldSpent = 0;
+        this.idleTime = 0;
+        this.bushTime = 0;
+        this.nexusDamage = 0;
+        this.turretDamage = 0;
+        this.lastActiveTime = performance.now() / 1000;
+        this.lastPosition = { x: this.x, y: this.y };
+        
+        console.log(`Caitlyn (team ${this.team}) respawned at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP - stats reset`);
         // Copy the best Caitlyn's brain with small mutation
         const bestCaitlyn = findBestCaitlyn();
         if (bestCaitlyn && bestCaitlyn !== this && bestCaitlyn.brain) {
