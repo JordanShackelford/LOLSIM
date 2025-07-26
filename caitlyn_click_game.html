@@ -971,11 +971,13 @@ class CaitlynAI {
 
     const { moveX, moveY, target, attack, useQ, buy, recall, trap, useE, useR, qAngle, rTarget } = this.decide(others, minions, turrets);
     let doAttack = attack;
+    console.log(`Caitlyn ${this.team} neural network output: attack=${attack}, doAttack=${doAttack}`);
     // Fallback: if not attacking but in range and cooldown is ready, force attack
     if ((!doAttack || !attack) && target && this.attackTimer <= 0) {
       const dist = Math.hypot(target.x - this.x, target.y - this.y);
       let attackRange = this.attackRange;
       if (target.trapped || target.netted) attackRange = HEADSHOT_RANGE;
+      console.log(`Caitlyn ${this.team} fallback check: dist=${dist}, attackRange=${attackRange}, will force attack: ${dist <= attackRange}`);
       if (dist <= attackRange) doAttack = true;
     }
 
@@ -1091,6 +1093,9 @@ class CaitlynAI {
     const dist = target ? Math.hypot(target.x - this.x, target.y - this.y) : Infinity;
     let attackRange = this.attackRange;
     if (target && (target.trapped || target.netted)) attackRange = HEADSHOT_RANGE;
+    
+    console.log(`Caitlyn ${this.team} attack check: doAttack=${doAttack}, target=${target ? target.constructor.name : 'none'}, attackTimer=${this.attackTimer}, dist=${dist}, attackRange=${attackRange}, CAITLYN_ATTACK_RANGE=${CAITLYN_ATTACK_RANGE}`);
+    
     if (doAttack && target && this.attackTimer <= 0 && dist <= attackRange) {
       this.attackAttempts++;
       let damage = this.getAD();
