@@ -2567,8 +2567,51 @@ class Minion {
         const dy = targetPt.y - this.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 2) {
-          this.x += (dx / dist) * this.moveSpeed * delta;
-          this.y += (dy / dist) * this.moveSpeed * delta;
+          // Calculate new position
+          const newX = this.x + (dx / dist) * this.moveSpeed * delta;
+          const newY = this.y + (dy / dist) * this.moveSpeed * delta;
+          
+          // Check for collision with other minions
+          let canMove = true;
+          for (const other of minions) {
+            if (other !== this && other.alive) {
+              const minDistance = this.radius + other.radius + 5; // 5px buffer
+              const actualDistance = Math.hypot(newX - other.x, newY - other.y);
+              if (actualDistance < minDistance) {
+                canMove = false;
+                break;
+              }
+            }
+          }
+          
+          // Only move if no collision
+          if (canMove) {
+            this.x = newX;
+            this.y = newY;
+          } else {
+            // Try to move in a slightly different direction to avoid collision
+            const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5; // Add some randomness
+            const avoidX = this.x + Math.cos(angle) * this.moveSpeed * delta * 0.5;
+            const avoidY = this.y + Math.sin(angle) * this.moveSpeed * delta * 0.5;
+            
+            // Check if the avoidance move is also collision-free
+            let canAvoid = true;
+            for (const other of minions) {
+              if (other !== this && other.alive) {
+                const minDistance = this.radius + other.radius + 5;
+                const actualDistance = Math.hypot(avoidX - other.x, avoidY - other.y);
+                if (actualDistance < minDistance) {
+                  canAvoid = false;
+                  break;
+                }
+              }
+            }
+            
+            if (canAvoid) {
+              this.x = avoidX;
+              this.y = avoidY;
+            }
+          }
         }
         if (dist < 20 && this.pathIdx < this.path.length - 2) this.pathIdx++;
       }
