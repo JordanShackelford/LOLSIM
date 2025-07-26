@@ -3054,6 +3054,7 @@ function main() {
     }
   }
   loadTurretPositions(); // <-- ensure this is called after turrets are created
+  loadMinionWaypoints(); // <-- load saved minion waypoint positions
   initCaitlyns(savedBrain);
   requestAnimationFrame(gameLoop);
 }
@@ -3091,6 +3092,11 @@ editModeBtn.onclick = () => {
   editModeBtn.textContent = showMinionPaths ? 'Edit Mode: ON' : 'Edit Mode: OFF';
 };
 uiDiv.appendChild(editModeBtn);
+
+// Minion path dragging variables
+let draggingWaypoint = null;
+let draggingLane = null;
+let dragWaypointIndex = -1;
 
 // In gameLoop, before drawing, handle zoom and camera follow
 let cameraX = 0, cameraY = 0, cameraZoom = 1;
@@ -3211,21 +3217,23 @@ function gameLoop(timestamp) {
         
         ctx.stroke();
         
-        // Draw waypoint markers
-        ctx.fillStyle = '#FFD700';
-        for (let i = 0; i < waypoints.length; i++) {
-          const wp = waypoints[i];
-          ctx.beginPath();
-          ctx.arc(wp.x, wp.y, 6, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Add waypoint number
-          ctx.fillStyle = '#000';
-          ctx.font = 'bold 12px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText(i.toString(), wp.x, wp.y + 4);
-          ctx.fillStyle = '#FFD700';
-        }
+            // Draw waypoint markers
+    for (let i = 0; i < waypoints.length; i++) {
+      const wp = waypoints[i];
+      const isDragging = draggingWaypoint === wp;
+      
+      // Different color for dragging waypoint
+      ctx.fillStyle = isDragging ? '#FF0000' : '#FFD700';
+      ctx.beginPath();
+      ctx.arc(wp.x, wp.y, isDragging ? 8 : 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Add waypoint number
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(i.toString(), wp.x, wp.y + 4);
+    }
         
         // Add lane label
         const midPoint = waypoints[Math.floor(waypoints.length / 2)];
@@ -5604,6 +5612,57 @@ canvas.addEventListener('mouseleave', e => {
   draggingTurret = null;
 });
 
+// Minion path waypoint dragging
+canvas.addEventListener('mousedown', e => {
+  if (!showMinionPaths) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  
+  // Check if clicking on a waypoint
+  for (const [laneName, waypoints] of Object.entries(LANE_WAYPOINTS)) {
+    for (let i = 0; i < waypoints.length; i++) {
+      const wp = waypoints[i];
+      const dist = Math.hypot(mouseX - wp.x, mouseY - wp.y);
+      if (dist < 15) { // Click radius for waypoints
+        draggingWaypoint = wp;
+        draggingLane = laneName;
+        dragWaypointIndex = i;
+        break;
+      }
+    }
+    if (draggingWaypoint) break;
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!showMinionPaths || !draggingWaypoint) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  
+  // Update waypoint position
+  draggingWaypoint.x = Math.max(0, Math.min(CANVAS_WIDTH, mouseX));
+  draggingWaypoint.y = Math.max(0, Math.min(CANVAS_HEIGHT, mouseY));
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!showMinionPaths || !draggingWaypoint) return;
+  
+  // Save waypoint positions to localStorage
+  const waypointData = {};
+  for (const [laneName, waypoints] of Object.entries(LANE_WAYPOINTS)) {
+    waypointData[laneName] = waypoints.map(wp => ({ x: wp.x, y: wp.y }));
+  }
+  localStorage.setItem('minionWaypoints', JSON.stringify(waypointData));
+  
+  draggingWaypoint = null;
+  draggingLane = null;
+  dragWaypointIndex = -1;
+});
+
 // --- Load turret positions from localStorage if available ---
 function loadTurretPositions() {
   const data = localStorage.getItem('turretPositions');
@@ -5622,6 +5681,25 @@ function loadTurretPositions() {
       }
     }
   } catch (e) { console.error('Failed to load turret positions:', e); }
+}
+
+// --- Load minion waypoint positions from localStorage if available ---
+function loadMinionWaypoints() {
+  const data = localStorage.getItem('minionWaypoints');
+  if (!data) return;
+  try {
+    const waypointData = JSON.parse(data);
+    if (waypointData && typeof waypointData === 'object') {
+      for (const [laneName, waypoints] of Object.entries(waypointData)) {
+        if (LANE_WAYPOINTS[laneName] && waypoints.length === LANE_WAYPOINTS[laneName].length) {
+          for (let i = 0; i < waypoints.length; i++) {
+            LANE_WAYPOINTS[laneName][i].x = waypoints[i].x;
+            LANE_WAYPOINTS[laneName][i].y = waypoints[i].y;
+          }
+        }
+      }
+    }
+  } catch (e) { console.error('Failed to load minion waypoints:', e); }
 }
 // ... existing code ...
 
