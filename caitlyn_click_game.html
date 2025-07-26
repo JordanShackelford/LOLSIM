@@ -2459,8 +2459,23 @@ class Minion {
     }
     this.path = team === 0 ? LANE_WAYPOINTS[this.lane] : [...LANE_WAYPOINTS[this.lane]].reverse();
     this.pathIdx = 0;
-    this.x = this.path[0]?.x ?? 0;
-    this.y = this.path[0]?.y ?? 0;
+    
+    // Spawn minions slightly outside the nexus to prevent them from getting stuck
+    const spawnPoint = this.path[0];
+    if (spawnPoint) {
+      if (team === 0) {
+        // Blue team spawns slightly to the right of their nexus
+        this.x = spawnPoint.x + NEXUS_RADIUS + 20;
+        this.y = spawnPoint.y;
+      } else {
+        // Red team spawns slightly to the left of their nexus
+        this.x = spawnPoint.x - NEXUS_RADIUS - 20;
+        this.y = spawnPoint.y;
+      }
+    } else {
+      this.x = 0;
+      this.y = 0;
+    }
     // Set stats from type
     this.radius = stats.radius;
     this.color = stats.color;
