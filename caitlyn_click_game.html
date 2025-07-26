@@ -1214,6 +1214,10 @@ class CaitlynAI {
             if (realTarget instanceof CaitlynAI && realTarget.team !== this.team) {
               realTarget.lastHitBy = this;
             }
+            if (realTarget instanceof Minion) {
+              realTarget.lastHitBy = this;
+              console.log(`Set lastHitBy on minion ${realTarget.id} (${realTarget.type}) in pendingAttack processing`);
+            }
           }
           // Still create projectile for visual effect
           basicProjectiles.push(new BasicProjectile(this.x, this.y, target.x, target.y, this.color, () => {
@@ -1264,7 +1268,10 @@ class CaitlynAI {
       this.pendingAttack = { target, damage, isHeadshot, isCrit };
       this.attackTimer = this.attackDelay;
       // If attacking a minion, set lastHitBy
-      if (target && target instanceof Minion) target.lastHitBy = this;
+      if (target && target instanceof Minion) {
+        target.lastHitBy = this;
+        console.log(`Caitlyn ${this.team} set lastHitBy on minion ${target.id} (${target.type})`);
+      }
       return;
     } else {
       // --- Advanced kiting logic ---
@@ -2724,10 +2731,7 @@ class Minion {
         }
         this.target.hp -= dmg;
         if (this.target instanceof Nexus && this.target.hp < 0) this.target.hp = 0;
-        if (this.target.hp <= 0 && this.target instanceof Minion && this.target.lastHitBy) {
-          this.target.lastHitBy.gold += this.target.gold;
-          this.target.lastHitBy.minionLastHits = (this.target.lastHitBy.minionLastHits || 0) + 1;
-        }
+        // Gold is granted in the minion's death logic, not here
       }
       this.attackTimer = 1.0 / this.attackSpeed;
     }
@@ -2921,9 +2925,13 @@ class Minion {
     // Die if HP <= 0
     if (this.hp <= 0 && this.alive) {
       this.alive = false;
-      if (this.lastHitBy && this.lastHitBy.team !== this.team) {
+      if (this.lastHitBy) {
+        // Grant gold to the last hitter (regardless of team for now, but could add team check if needed)
         this.lastHitBy.gold += this.gold;
         this.lastHitBy.minionLastHits = (this.lastHitBy.minionLastHits || 0) + 1;
+        console.log(`Minion ${this.id} (${this.type}) killed by Caitlyn ${this.lastHitBy.team}, granted ${this.gold} gold`);
+      } else {
+        console.log(`Minion ${this.id} (${this.type}) died without lastHitBy, no gold granted`);
       }
       // XP grant
       const xpAmount = { melee: 60, caster: 29, cannon: 92, super: 97 }[this.type] || 0;
@@ -4806,7 +4814,10 @@ CaitlynAI.prototype.update = function(others, delta, projectiles, minions, turre
       this.windupTimer = this.attackWindup;
       this.pendingAttack = { target, damage };
       this.attackTimer = this.attackDelay;
-      if (target && target instanceof Minion) target.lastHitBy = this;
+      if (target && target instanceof Minion) {
+        target.lastHitBy = this;
+        console.log(`Caitlyn ${this.team} set lastHitBy on minion ${target.id} (${target.type}) in update method`);
+      }
       // --- Kiting improvement: set post-attack kite burst ---
       this.kiteBurstTimer = 0.18; // 180ms burst after attack
       if (target) {
