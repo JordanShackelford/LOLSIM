@@ -2187,6 +2187,60 @@ function rankToNumeric(rank) {
   return 1;
 }
 
+// Calculate linear regression (best fit line)
+function calculateTrend(data) {
+  if (data.length < 2) return { slope: 0, intercept: 0, r2: 0 };
+  
+  const n = data.length;
+  const x = Array.from({length: n}, (_, i) => i);
+  
+  // Calculate means
+  const xMean = x.reduce((a, b) => a + b, 0) / n;
+  const yMean = data.reduce((a, b) => a + b, 0) / n;
+  
+  // Calculate slope and intercept
+  let numerator = 0;
+  let denominator = 0;
+  for (let i = 0; i < n; i++) {
+    numerator += (x[i] - xMean) * (data[i] - yMean);
+    denominator += (x[i] - xMean) * (x[i] - xMean);
+  }
+  
+  const slope = denominator === 0 ? 0 : numerator / denominator;
+  const intercept = yMean - slope * xMean;
+  
+  // Calculate R-squared
+  const yPred = x.map(xi => slope * xi + intercept);
+  const ssRes = data.reduce((sum, yi, i) => sum + Math.pow(yi - yPred[i], 2), 0);
+  const ssTot = data.reduce((sum, yi) => sum + Math.pow(yi - yMean, 2), 0);
+  const r2 = ssTot === 0 ? 0 : 1 - (ssRes / ssTot);
+  
+  return { slope, intercept, r2 };
+}
+
+// Get trend description based on slope and R-squared
+function getTrendDescription(slope, r2) {
+  const absSlope = Math.abs(slope);
+  const isImproving = slope > 0;
+  const isDeclining = slope < 0;
+  const isStable = Math.abs(slope) < 0.01;
+  
+  // Determine confidence based on R-squared
+  const confidence = r2 > 0.7 ? 'strong' : r2 > 0.4 ? 'moderate' : 'weak';
+  
+  if (isStable) {
+    return `${confidence} stable trend`;
+  } else if (isImproving) {
+    if (absSlope > 0.1) return `${confidence} improving quickly`;
+    if (absSlope > 0.05) return `${confidence} improving steadily`;
+    return `${confidence} improving slowly`;
+  } else {
+    if (absSlope > 0.1) return `${confidence} declining quickly`;
+    if (absSlope > 0.05) return `${confidence} declining steadily`;
+    return `${confidence} declining slowly`;
+  }
+}
+
 // In updateTeamMetricsChart, handle avgFitness specially
 function updateTeamMetricsChart() {
   const metric = document.getElementById('teamMetricSelect').value;
@@ -2231,14 +2285,56 @@ function updateTeamMetricsChart() {
       tension: 0.2
     }));
   }
+  // Calculate trends and add trend lines
+  const trendDatasets = [];
+  const trendLabels = [];
+  
+  for (let team = 0; team < 2; team++) {
+    const teamData = datasets[team].data;
+    const trend = calculateTrend(teamData);
+    const trendDescription = getTrendDescription(trend.slope, trend.r2);
+    
+    // Add trend line dataset
+    if (teamData.length > 1) {
+      const trendLineData = teamData.map((_, i) => trend.slope * i + trend.intercept);
+      trendDatasets.push({
+        label: `Team ${team + 1} Trend`,
+        data: trendLineData,
+        borderColor: TEAM_COLORS[team] + '80',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0,
+        pointRadius: 0
+      });
+    }
+    
+    // Add trend label
+    trendLabels.push(`Team ${team + 1}: ${trendDescription}`);
+  }
+  
+  // Combine original datasets with trend datasets
+  const allDatasets = [...datasets, ...trendDatasets];
+  
   if (!teamChart) {
     const ctx = document.getElementById('teamMetricsChart').getContext('2d');
     teamChart = new Chart(ctx, {
       type: 'line',
-      data: { labels, datasets },
+      data: { labels, datasets: allDatasets },
       options: {
         responsive: false,
-        plugins: { legend: { labels: { color: 'white' } } },
+        plugins: { 
+          legend: { labels: { color: 'white' } },
+          tooltip: {
+            callbacks: {
+              afterBody: function(context) {
+                const teamIndex = context[0].datasetIndex % 2; // Get team from original dataset
+                return trendLabels[teamIndex] || '';
+              }
+            }
+          }
+        },
         scales: {
           x: { ticks: { color: 'white' }, grid: { color: '#444' } },
           y: { ticks: { color: 'white' }, grid: { color: '#444' } }
@@ -2247,9 +2343,21 @@ function updateTeamMetricsChart() {
     });
   } else {
     teamChart.data.labels = labels;
-    teamChart.data.datasets = datasets;
+    teamChart.data.datasets = allDatasets;
     teamChart.update();
   }
+  
+  // Update trend labels in UI
+  const trendLabelElement = document.getElementById('trendLabels');
+  if (!trendLabelElement) {
+    const trendDiv = document.createElement('div');
+    trendDiv.id = 'trendLabels';
+    trendDiv.style.cssText = 'color: white; margin: 10px 20px; font-size: 12px; font-family: monospace;';
+    document.getElementById('teamGraphUI').appendChild(trendDiv);
+  }
+  document.getElementById('trendLabels').innerHTML = trendLabels.map(label => 
+    `<div style="margin: 2px 0;">${label}</div>`
+  ).join('');
 }
 document.getElementById('teamMetricSelect').addEventListener('change', updateTeamMetricsChart);
 
