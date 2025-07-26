@@ -878,11 +878,17 @@ class CaitlynAI {
           this.goldSpent += bfSword.cost;
           console.log(`Caitlyn (team ${this.team}) bought BF Sword for ${bfSword.cost} gold`);
         } else if (longSword) {
-          // Buy Long Swords with remaining gold
-          while (this.gold >= longSword.cost) {
+          // Buy Long Swords only if we have less than 2 and can afford them
+          const longSwordCount = this.items.filter(item => item.name === 'Long Sword').length;
+          if (longSwordCount < 2 && this.gold >= longSword.cost) {
             this.gold -= longSword.cost;
             this.items.push(longSword);
             this.goldSpent += longSword.cost;
+            console.log(`Caitlyn (team ${this.team}) bought Long Sword (${longSwordCount + 1}/2) for ${longSword.cost} gold`);
+          } else if (longSwordCount >= 2) {
+            console.log(`Caitlyn (team ${this.team}) has max Long Swords (2), waiting for better items`);
+          } else {
+            console.log(`Caitlyn (team ${this.team}) can't afford Long Sword (${this.gold}/${longSword.cost} gold), waiting`);
           }
         }
       }
