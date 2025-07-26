@@ -3359,6 +3359,11 @@ function gameLoop(timestamp) {
         c.fitness -= c.unspentGold * 0.01;
         // c.fitness += c.survived ? 50 : 0;
         c.fitness += c.turretDamage * 0.05;
+        
+        // Debug: log fitness breakdown for first few Caitlyns
+        if (c.id <= 3) {
+          console.log(`Caitlyn ${c.id} fitness breakdown: kills=${c.kills}, deaths=${c.deaths}, minionLastHits=${c.minionLastHits}, damageDealt=${c.damageDealt}, goldSpent=${c.goldSpent}, fitness=${c.fitness}`);
+        }
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
