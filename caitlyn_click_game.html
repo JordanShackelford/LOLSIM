@@ -44,6 +44,18 @@ wolfImg.src = 'wolf.png';
 let wolfImgLoaded = false;
 wolfImg.onload = () => { wolfImgLoaded = true; };
 
+// Load gromp image for jungle camps
+const grompImg = new Image();
+grompImg.src = 'gromp.png';
+let grompImgLoaded = false;
+grompImg.onload = () => { grompImgLoaded = true; };
+
+// Load krug image for jungle camps
+const krugImg = new Image();
+krugImg.src = 'krug.png';
+let krugImgLoaded = false;
+krugImg.onload = () => { krugImgLoaded = true; };
+
 // Wild Rift map: 13,000 units wide = 1200px
 const GAME_UNIT_TO_PX = CANVAS_WIDTH / 13000; // ≈ 0.0923 px per unit
 
@@ -266,6 +278,10 @@ class JungleCamp {
     ctx.save();
     if (this.type === 'wolves' && wolfImgLoaded) {
       ctx.drawImage(wolfImg, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+    } else if (this.type === 'gromp' && grompImgLoaded) {
+      ctx.drawImage(grompImg, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+    } else if (this.type === 'krugs' && krugImgLoaded) {
+      ctx.drawImage(krugImg, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
     } else {
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
