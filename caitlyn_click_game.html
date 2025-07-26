@@ -2742,11 +2742,15 @@ class Minion {
         const newX = this.x + (dx / dist) * this.moveSpeed * delta;
         const newY = this.y + (dy / dist) * this.moveSpeed * delta;
         
-        // Check for collision with other minions
+        // Improved collision detection for target movement
         let canMove = true;
+        let bestMoveX = newX;
+        let bestMoveY = newY;
+        
+        // Check primary move
         for (const other of minions) {
           if (other !== this && other.alive) {
-            const minDistance = this.radius + other.radius + 0.5; // Reduced buffer to allow closer combat
+            const minDistance = this.radius + other.radius + 0.3; // Smaller buffer for target movement
             const actualDistance = Math.hypot(newX - other.x, newY - other.y);
             if (actualDistance < minDistance) {
               canMove = false;
@@ -2755,9 +2759,40 @@ class Minion {
           }
         }
         
+        if (!canMove) {
+          // Try to move around the obstacle
+          const baseAngle = Math.atan2(dy, dx);
+          const attempts = 6;
+          
+          for (let i = 0; i < attempts; i++) {
+            const angle = baseAngle + (i / attempts) * Math.PI * 2;
+            const avoidX = this.x + Math.cos(angle) * this.moveSpeed * delta * 0.7;
+            const avoidY = this.y + Math.sin(angle) * this.moveSpeed * delta * 0.7;
+            
+            let canAvoid = true;
+            for (const other of minions) {
+              if (other !== this && other.alive) {
+                const minDistance = this.radius + other.radius + 0.2;
+                const actualDistance = Math.hypot(avoidX - other.x, avoidY - other.y);
+                if (actualDistance < minDistance) {
+                  canAvoid = false;
+                  break;
+                }
+              }
+            }
+            
+            if (canAvoid) {
+              bestMoveX = avoidX;
+              bestMoveY = avoidY;
+              canMove = true;
+              break;
+            }
+          }
+        }
+        
         if (canMove) {
-          this.x = newX;
-          this.y = newY;
+          this.x = bestMoveX;
+          this.y = bestMoveY;
         }
       }
     } else {
@@ -2774,11 +2809,16 @@ class Minion {
           const newX = this.x + (dx / dist) * this.moveSpeed * delta;
           const newY = this.y + (dy / dist) * this.moveSpeed * delta;
           
-          // Check for collision with other minions (allow closer spacing for combat)
+          // Improved collision detection with multiple avoidance attempts
           let canMove = true;
+          let bestMoveX = newX;
+          let bestMoveY = newY;
+          let bestDistance = 0;
+          
+          // Check primary move
           for (const other of minions) {
             if (other !== this && other.alive) {
-              const minDistance = this.radius + other.radius + 0.5; // Reduced buffer to allow closer combat
+              const minDistance = this.radius + other.radius + 0.5;
               const actualDistance = Math.hypot(newX - other.x, newY - other.y);
               if (actualDistance < minDistance) {
                 canMove = false;
@@ -2787,38 +2827,97 @@ class Minion {
             }
           }
           
-          // Only move if no collision
-          if (canMove) {
-            this.x = newX;
-            this.y = newY;
-          } else {
-            // Try to move in a slightly different direction to avoid collision
-            const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5; // Add some randomness
-            const avoidX = this.x + Math.cos(angle) * this.moveSpeed * delta * 0.5;
-            const avoidY = this.y + Math.sin(angle) * this.moveSpeed * delta * 0.5;
+          if (!canMove) {
+            // Try multiple avoidance directions
+            const baseAngle = Math.atan2(dy, dx);
+            const attempts = 8; // Try 8 different angles
             
-            // Check if the avoidance move is also collision-free
-            let canAvoid = true;
-            for (const other of minions) {
-              if (other !== this && other.alive) {
-                const minDistance = this.radius + other.radius + 1; // Reduced buffer for avoidance
-                const actualDistance = Math.hypot(avoidX - other.x, avoidY - other.y);
-                if (actualDistance < minDistance) {
-                  canAvoid = false;
-                  break;
+            for (let i = 0; i < attempts; i++) {
+              const angle = baseAngle + (i / attempts) * Math.PI * 2;
+              const avoidX = this.x + Math.cos(angle) * this.moveSpeed * delta * 0.8;
+              const avoidY = this.y + Math.sin(angle) * this.moveSpeed * delta * 0.8;
+              
+              // Check if this avoidance move works
+              let canAvoid = true;
+              for (const other of minions) {
+                if (other !== this && other.alive) {
+                  const minDistance = this.radius + other.radius + 0.3; // Even smaller buffer
+                  const actualDistance = Math.hypot(avoidX - other.x, avoidY - other.y);
+                  if (actualDistance < minDistance) {
+                    canAvoid = false;
+                    break;
+                  }
+                }
+              }
+              
+              if (canAvoid) {
+                // Calculate how close this gets us to our target
+                const targetDist = Math.hypot(avoidX - targetPt.x, avoidY - targetPt.y);
+                if (targetDist > bestDistance) {
+                  bestMoveX = avoidX;
+                  bestMoveY = avoidY;
+                  bestDistance = targetDist;
+                  canMove = true;
                 }
               }
             }
             
-            if (canAvoid) {
-              this.x = avoidX;
-              this.y = avoidY;
+            // If still can't move, try a small random movement to break deadlock
+            if (!canMove) {
+              const randomAngle = Math.random() * Math.PI * 2;
+              const smallMoveX = this.x + Math.cos(randomAngle) * this.moveSpeed * delta * 0.3;
+              const smallMoveY = this.y + Math.sin(randomAngle) * this.moveSpeed * delta * 0.3;
+              
+              // Only check for extreme overlaps (not just close proximity)
+              let canSmallMove = true;
+              for (const other of minions) {
+                if (other !== this && other.alive) {
+                  const minDistance = this.radius + other.radius - 2; // Allow slight overlap to break deadlock
+                  const actualDistance = Math.hypot(smallMoveX - other.x, smallMoveY - other.y);
+                  if (actualDistance < minDistance) {
+                    canSmallMove = false;
+                    break;
+                  }
+                }
+              }
+              
+              if (canSmallMove) {
+                bestMoveX = smallMoveX;
+                bestMoveY = smallMoveY;
+                canMove = true;
+              }
             }
+          }
+          
+          // Apply the best available move
+          if (canMove) {
+            this.x = bestMoveX;
+            this.y = bestMoveY;
           }
         }
         if (dist < 20 && this.pathIdx < this.path.length - 2) this.pathIdx++;
       }
     }
+    // Anti-stuck mechanism: if minion hasn't moved much in the last few seconds, give it a small random push
+    if (!this.lastPosition) {
+      this.lastPosition = { x: this.x, y: this.y, time: performance.now() / 1000 };
+    }
+    
+    const currentTime = performance.now() / 1000;
+    const timeSinceLastMove = currentTime - this.lastPosition.time;
+    const distanceMoved = Math.hypot(this.x - this.lastPosition.x, this.y - this.lastPosition.y);
+    
+    // If minion has barely moved in 3 seconds, give it a small random push
+    if (timeSinceLastMove > 3 && distanceMoved < 5) {
+      const randomAngle = Math.random() * Math.PI * 2;
+      const pushDistance = this.moveSpeed * 0.5; // Small push
+      this.x += Math.cos(randomAngle) * pushDistance;
+      this.y += Math.sin(randomAngle) * pushDistance;
+    }
+    
+    // Update last position
+    this.lastPosition = { x: this.x, y: this.y, time: currentTime };
+    
     // Die if HP <= 0
     if (this.hp <= 0 && this.alive) {
       this.alive = false;
