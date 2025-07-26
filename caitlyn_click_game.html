@@ -3062,14 +3062,14 @@ function gameLoop(timestamp) {
             console.log('Spawned super minion:', minion);
           } else {
             if (isLateGame || (minionWaveNumbers[t] >= 3 && (minionWaveNumbers[t] - 1) % 3 === 0)) {
-              // 2 melee, 1 cannon, 3 caster
-              for (let i = 0; i < 2; ++i) { const minion = new Minion(t, lane, 'melee', gameSeconds); minions.push(minion); console.log('Spawned melee minion:', minion); }
+              // 1 melee, 1 cannon, 1 caster
+              const meleeMinion = new Minion(t, lane, 'melee', gameSeconds); minions.push(meleeMinion); console.log('Spawned melee minion:', meleeMinion);
               const cannonMinion = new Minion(t, lane, 'cannon', gameSeconds); minions.push(cannonMinion); console.log('Spawned cannon minion:', cannonMinion);
-              for (let i = 0; i < 3; ++i) { const minion = new Minion(t, lane, 'caster', gameSeconds); minions.push(minion); console.log('Spawned caster minion:', minion); }
+              const casterMinion = new Minion(t, lane, 'caster', gameSeconds); minions.push(casterMinion); console.log('Spawned caster minion:', casterMinion);
             } else {
-              // 3 melee, 3 caster
-              for (let i = 0; i < 3; ++i) { const minion = new Minion(t, lane, 'melee', gameSeconds); minions.push(minion); console.log('Spawned melee minion:', minion); }
-              for (let i = 0; i < 3; ++i) { const minion = new Minion(t, lane, 'caster', gameSeconds); minions.push(minion); console.log('Spawned caster minion:', minion); }
+              // 2 melee, 1 caster
+              for (let i = 0; i < 2; ++i) { const minion = new Minion(t, lane, 'melee', gameSeconds); minions.push(minion); console.log('Spawned melee minion:', minion); }
+              const casterMinion = new Minion(t, lane, 'caster', gameSeconds); minions.push(casterMinion); console.log('Spawned caster minion:', casterMinion);
             }
             // Removed extra minions to reduce wave size
           }
