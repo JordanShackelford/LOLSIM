@@ -2885,8 +2885,8 @@ let minions = [];
 let turrets = [];
 let minionSpawnTimers = [0, 0];
 let minionWaveNumbers = [0, 0]; // Track wave number for each team
-const MINION_WAVE_INTERVAL = 15; // seconds (increased from 8)
-const FIRST_WAVE_TIME = 5; // seconds (increased from 3)
+const MINION_WAVE_INTERVAL = 10; // seconds (reduced from 15)
+const FIRST_WAVE_TIME = 3; // seconds (reduced from 5)
 
 // Add global array for turret projectiles
 let turretProjectiles = [];
@@ -3071,9 +3071,7 @@ function gameLoop(timestamp) {
               for (let i = 0; i < 3; ++i) { const minion = new Minion(t, lane, 'melee', gameSeconds); minions.push(minion); console.log('Spawned melee minion:', minion); }
               for (let i = 0; i < 3; ++i) { const minion = new Minion(t, lane, 'caster', gameSeconds); minions.push(minion); console.log('Spawned caster minion:', minion); }
             }
-            // Add extra minions to make waves bigger
-            for (let i = 0; i < 2; ++i) { const minion = new Minion(t, lane, 'melee', gameSeconds); minions.push(minion); console.log('Spawned extra melee minion:', minion); }
-            for (let i = 0; i < 2; ++i) { const minion = new Minion(t, lane, 'caster', gameSeconds); minions.push(minion); console.log('Spawned extra caster minion:', minion); }
+            // Removed extra minions to reduce wave size
           }
         }
         minionSpawnTimers[t] = 0;
