@@ -484,11 +484,15 @@ class BasicProjectile {
   }
 }
 
-// Load Caitlyn sprite
+// Load Caitlyn sprites
 const caitlynImg = new Image();
+const caitlynAutoImg = new Image();
 caitlynImg.src = 'caitlyn.png';
+caitlynAutoImg.src = 'caitlyn_auto.png';
 let caitlynImgLoaded = false;
+let caitlynAutoImgLoaded = false;
 caitlynImg.onload = () => { caitlynImgLoaded = true; };
+caitlynAutoImg.onload = () => { caitlynAutoImgLoaded = true; };
 
 // TEAMFIGHT CONSTANTS
 const TEAM_SIZE = 5;
@@ -1659,8 +1663,13 @@ class CaitlynAI {
       ctx.shadowColor = this.color;
       ctx.shadowBlur = 25 + glowIntensity * 15;
       
-      if (caitlynImgLoaded) {
-        ctx.drawImage(caitlynImg, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
+      // Choose sprite based on attack state
+      const isAttacking = this.attackTimer > 0 || this.windupTimer > 0;
+      const currentSprite = isAttacking ? caitlynAutoImg : caitlynImg;
+      const spriteLoaded = isAttacking ? caitlynAutoImgLoaded : caitlynImgLoaded;
+      
+      if (spriteLoaded) {
+        ctx.drawImage(currentSprite, drawX, drawY, SPRITE_SIZE, SPRITE_SIZE);
       } else {
         // Enhanced fallback: draw modern circle with effects
         let gradient = ctx.createRadialGradient(cx, cy, r1, cx, cy, r2);
