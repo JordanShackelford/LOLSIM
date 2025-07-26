@@ -148,6 +148,13 @@ const ITEM_SHOP = [
     stackable: false
   },
   {
+    name: 'Cloak of Agility',
+    cost: 600,
+    crit: 15,
+    icon: 'cloakofagility.png',
+    stackable: true
+  },
+  {
     name: 'Long Sword',
     cost: 500,
     ad: 12,
@@ -815,7 +822,11 @@ class CaitlynAI {
     // If at base and can buy, buy items if enough gold
     if (this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) < NEXUS_RADIUS + 10) {
       const bfSword = ITEM_SHOP.find(item => item.name === 'BF Sword');
+      const cloakOfAgility = ITEM_SHOP.find(item => item.name === 'Cloak of Agility');
       const longSword = ITEM_SHOP.find(item => item.name === 'Long Sword');
+      
+      // Check if Caitlyn has a BF Sword
+      const hasBFSword = this.items.some(item => item.name === 'BF Sword');
       
       // First, try to craft BF Sword from Long Swords
       const longSwordCount = this.items.filter(item => item.name === 'Long Sword').length;
@@ -834,6 +845,12 @@ class CaitlynAI {
         this.items.push(bfSword);
         this.goldSpent += 500;
         console.log(`Caitlyn (team ${this.team}) crafted BF Sword from 2 Long Swords + 500 gold`);
+      } else if (hasBFSword && cloakOfAgility && this.gold >= cloakOfAgility.cost) {
+        // If they have BF Sword, prioritize Cloak of Agility
+        this.gold -= cloakOfAgility.cost;
+        this.items.push(cloakOfAgility);
+        this.goldSpent += cloakOfAgility.cost;
+        console.log(`Caitlyn (team ${this.team}) bought Cloak of Agility for ${cloakOfAgility.cost} gold`);
       } else if (bfSword && this.gold >= bfSword.cost) {
         // Buy BF Sword directly if we can afford it
         this.gold -= bfSword.cost;
@@ -982,7 +999,7 @@ class CaitlynAI {
     if (this.windupTimer > 0) {
       this.windupTimer -= delta;
       if (this.windupTimer <= 0 && this.pendingAttack) {
-        const { target, damage, isHeadshot } = this.pendingAttack;
+        const { target, damage, isHeadshot, isCrit } = this.pendingAttack;
         if (target && target.hp > 0) {
           // Prevent attacking own turret
           if (target instanceof Turret && target.team === this.team) {
@@ -1010,10 +1027,10 @@ class CaitlynAI {
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
             // Enhanced particle effects for damage
             if (realTarget instanceof Minion) {
-              realTarget.flashColor = `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
-              realTarget.flashTimer = 0.18;
+              realTarget.flashColor = isCrit ? '#ff0000' : `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
+              realTarget.flashTimer = isCrit ? 0.3 : 0.18;
             } else {
-              spawnDamageParticles(realTarget.x, realTarget.y, damage, false);
+              spawnDamageParticles(realTarget.x, realTarget.y, damage, isCrit);
             }
             // --- Kiting bonus: reward for dealing damage from a distance ---
             if (realTarget && realTarget !== this && typeof realTarget.x === 'number' && typeof realTarget.y === 'number') {
@@ -1048,6 +1065,15 @@ class CaitlynAI {
       this.attackAttempts++;
       let damage = this.getAD();
       let isHeadshot = false;
+      let isCrit = false;
+      
+      // Check for critical strike
+      const critChance = this.getBonusCrit();
+      if (critChance > 0 && Math.random() * 100 < critChance) {
+        damage = Math.round(damage * 2); // 200% damage on crit
+        isCrit = true;
+      }
+      
       if (this.headshotReady || (target.trapped || target.netted)) {
         damage += Math.round(this.getAD() * HEADSHOT_BONUS_MULT);
         this.headshotReady = false;
@@ -1062,7 +1088,7 @@ class CaitlynAI {
         }
       }
       this.windupTimer = this.attackWindup;
-      this.pendingAttack = { target, damage, isHeadshot };
+      this.pendingAttack = { target, damage, isHeadshot, isCrit };
       this.attackTimer = this.attackDelay;
       // If attacking a minion, set lastHitBy
       if (target && target instanceof Minion) target.lastHitBy = this;
