@@ -2950,26 +2950,26 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw game timer at the top of the screen
+    // Draw game timer in the center of the screen
     const minutes = Math.floor(gameMinutes);
     const seconds = Math.floor(gameSeconds % 60);
     const timerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     
-    console.log(`Game timer: ${timerText} (${gameSeconds}s total)`);
+    console.log(`Game timer: ${timerText} (${gameSeconds}s total) - Drawing at center: ${CANVAS_WIDTH/2}, ${CANVAS_HEIGHT/2}`);
     
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for UI elements
     
     // Draw background rectangle for better visibility
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(CANVAS_WIDTH / 2 - 50, 10, 100, 40);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(CANVAS_WIDTH / 2 - 60, CANVAS_HEIGHT / 2 - 30, 120, 60);
     
     ctx.fillStyle = '#ffff00'; // Yellow color
-    ctx.font = 'bold 28px Arial';
+    ctx.font = 'bold 36px Arial';
     ctx.textAlign = 'center';
     ctx.shadowColor = 'black';
-    ctx.shadowBlur = 4;
-    ctx.fillText(timerText, CANVAS_WIDTH / 2, 35);
+    ctx.shadowBlur = 5;
+    ctx.fillText(timerText, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
     ctx.restore();
 
     // Camera transform: set before any drawing
