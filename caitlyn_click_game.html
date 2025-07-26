@@ -5551,16 +5551,16 @@ window.showPlayerGold = false;
 // Ensure this is at the top-level, not inside any function:
 const TEMPORAL_FRAMES = 8;
 
-// --- Add Edit Mode Button to UI ---
-const editModeBtn = document.createElement('button');
-editModeBtn.textContent = 'Edit Mode: OFF';
-editModeBtn.style.marginTop = '8px';
+// --- Add Turret Edit Mode Button to UI ---
+const turretEditModeBtn = document.createElement('button');
+turretEditModeBtn.textContent = 'Turret Edit: OFF';
+turretEditModeBtn.style.marginTop = '8px';
 let editMode = false;
-editModeBtn.onclick = () => {
+turretEditModeBtn.onclick = () => {
   editMode = !editMode;
-  editModeBtn.textContent = editMode ? 'Edit Mode: ON' : 'Edit Mode: OFF';
+  turretEditModeBtn.textContent = editMode ? 'Turret Edit: ON' : 'Turret Edit: OFF';
 };
-document.getElementById('ui').appendChild(editModeBtn);
+document.getElementById('ui').appendChild(turretEditModeBtn);
 
 // --- Turret Drag Logic ---
 let draggingTurret = null;
