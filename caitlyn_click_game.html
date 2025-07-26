@@ -725,10 +725,12 @@ class CaitlynAI {
     if (targetType === 0) {
       // Minion
       let enemyMinions = minions.filter(m => m.team !== this.team && m.alive);
+      console.log(`Caitlyn ${this.team} looking for minions: found ${enemyMinions.length} enemy minions`);
       if (enemyMinions.length > 0) {
         // Closest minion
         enemyMinions.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
         target = enemyMinions[0];
+        console.log(`Caitlyn ${this.team} targeting minion ${target.id} at distance ${Math.hypot(target.x - this.x, target.y - this.y)}`);
       }
     } else if (targetType === 1) {
       // Turret
@@ -1043,6 +1045,7 @@ class CaitlynAI {
             if (realTarget instanceof Minion) {
               console.log(`Minion ${realTarget.id} damaged: HP before=${realTarget.hp}, damage=${damage}`);
             }
+            console.log(`Applying ${damage} damage to ${realTarget.constructor.name} (HP: ${realTarget.hp} -> ${realTarget.hp - damage})`);
             realTarget.hp -= damage;
             if (realTarget.hp < 0) realTarget.hp = 0;
             if (realTarget.hp === 0 && realTarget instanceof Minion) realTarget.alive = false;
@@ -1093,6 +1096,8 @@ class CaitlynAI {
       let damage = this.getAD();
       let isHeadshot = false;
       let isCrit = false;
+      
+      console.log(`Caitlyn ${this.team} attacking ${target.constructor.name} (${target instanceof Minion ? 'minion ' + target.id : 'other'}) with ${damage} damage`);
       
       // Check for critical strike
       const critChance = this.getBonusCrit();
