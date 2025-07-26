@@ -814,12 +814,28 @@ class CaitlynAI {
     }
     // If at base and can buy, buy items if enough gold
     if (this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) < NEXUS_RADIUS + 10) {
-      // Prefer BF Sword if affordable, otherwise buy Long Swords
       const bfSword = ITEM_SHOP.find(item => item.name === 'BF Sword');
       const longSword = ITEM_SHOP.find(item => item.name === 'Long Sword');
       
-      if (bfSword && this.gold >= bfSword.cost) {
-        // Buy BF Sword if we can afford it
+      // First, try to craft BF Sword from Long Swords
+      const longSwordCount = this.items.filter(item => item.name === 'Long Sword').length;
+      if (longSwordCount >= 2 && this.gold >= 500) {
+        // Remove 2 Long Swords and add BF Sword
+        let removed = 0;
+        this.items = this.items.filter(item => {
+          if (item.name === 'Long Sword' && removed < 2) {
+            removed++;
+            return false; // Remove this Long Sword
+          }
+          return true; // Keep other items
+        });
+        
+        this.gold -= 500;
+        this.items.push(bfSword);
+        this.goldSpent += 500;
+        console.log(`Caitlyn (team ${this.team}) crafted BF Sword from 2 Long Swords + 500 gold`);
+      } else if (bfSword && this.gold >= bfSword.cost) {
+        // Buy BF Sword directly if we can afford it
         this.gold -= bfSword.cost;
         this.items.push(bfSword);
         this.goldSpent += bfSword.cost;
