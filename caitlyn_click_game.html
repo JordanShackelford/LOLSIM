@@ -2168,6 +2168,49 @@ uiDiv.appendChild(clearBtn);
 let teamMetricsHistory = [];
 let teamChart;
 
+// Load graph data from localStorage
+function loadGraphData() {
+  try {
+    const saved = localStorage.getItem('teamMetricsHistory');
+    if (saved) {
+      teamMetricsHistory = JSON.parse(saved);
+      console.log(`Loaded ${teamMetricsHistory.length} generations from localStorage`);
+      
+      // Update the graph info display
+      const graphInfo = document.getElementById('graphInfo');
+      if (graphInfo) {
+        graphInfo.textContent = `Stored: ${teamMetricsHistory.length} generations (showing last 100)`;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load graph data from localStorage:', e);
+    teamMetricsHistory = [];
+  }
+}
+
+// Save graph data to localStorage
+function saveGraphData() {
+  try {
+    // Keep only the last 100 generations
+    if (teamMetricsHistory.length > 100) {
+      teamMetricsHistory = teamMetricsHistory.slice(-100);
+    }
+    localStorage.setItem('teamMetricsHistory', JSON.stringify(teamMetricsHistory));
+    console.log(`Saved ${teamMetricsHistory.length} generations to localStorage`);
+    
+    // Update the graph info display
+    const graphInfo = document.getElementById('graphInfo');
+    if (graphInfo) {
+      graphInfo.textContent = `Stored: ${teamMetricsHistory.length} generations (showing last 100)`;
+    }
+  } catch (e) {
+    console.warn('Failed to save graph data to localStorage:', e);
+  }
+}
+
+// Load data on startup
+loadGraphData();
+
 // Add team metrics chart UI
 const teamGraphDiv = document.getElementById('teamGraphUI');
 teamGraphDiv.innerHTML = `
@@ -2179,6 +2222,7 @@ teamGraphDiv.innerHTML = `
     <option value="gold">Gold</option>
     <option value="avgRank">Grade</option>
   </select>
+  <div id="graphInfo" style="color:white;margin-left:20px;font-size:12px;font-family:monospace;">Stored: 0 generations</div>
   <canvas id="teamMetricsChart" width="800" height="200" style="display:block;margin:10px auto 0 auto;background:#111;border-radius:8px;"></canvas>
 `;
 
@@ -2273,12 +2317,14 @@ function getTrendDescription(slope, r2) {
 // In updateTeamMetricsChart, handle avgFitness specially
 function updateTeamMetricsChart() {
   const metric = document.getElementById('teamMetricSelect').value;
-  const labels = teamMetricsHistory.map(m => m.generation);
+  // Show only the last 100 generations for better performance
+  const recentHistory = teamMetricsHistory.slice(-100);
+  const labels = recentHistory.map(m => m.generation);
   let datasets;
   if (metric === 'avgFitness') {
     datasets = [0, 1].map(t => ({
       label: `Team ${t + 1}`,
-      data: teamMetricsHistory.map((m, i) => {
+      data: recentHistory.map((m, i) => {
         // Use stored avgFitness data
         if (!m.avgFitness || !Array.isArray(m.avgFitness)) {
           console.warn(`Missing avgFitness data for generation ${i}, team ${t}`);
@@ -2295,7 +2341,7 @@ function updateTeamMetricsChart() {
   } else if (metric === 'avgRank') {
     datasets = [0, 1].map(t => ({
       label: `Team ${t + 1}`,
-      data: teamMetricsHistory.map(m => rankToNumeric(m.avgRank[t])),
+      data: recentHistory.map(m => rankToNumeric(m.avgRank[t])),
       borderColor: TEAM_COLORS[t],
       backgroundColor: TEAM_COLORS[t] + '33',
       fill: true,
@@ -2304,7 +2350,7 @@ function updateTeamMetricsChart() {
   } else {
     datasets = [0, 1].map(t => ({
       label: `Team ${t + 1}`,
-      data: teamMetricsHistory.map(m => m[metric][t]),
+      data: recentHistory.map(m => m[metric][t]),
       borderColor: TEAM_COLORS[t],
       backgroundColor: TEAM_COLORS[t] + '33',
       fill: true,
@@ -2409,6 +2455,28 @@ copyGraphBtn.onclick = () => {
   setTimeout(() => { copyGraphBtn.textContent = 'Copy Graph Data'; }, 1200);
 };
 document.getElementById('teamMetricSelect').parentNode.appendChild(copyGraphBtn);
+
+// Add Clear Graph Data button
+const clearGraphBtn = document.createElement('button');
+clearGraphBtn.textContent = 'Clear Graph Data';
+clearGraphBtn.style.marginLeft = '20px';
+clearGraphBtn.style.fontWeight = 'bold';
+clearGraphBtn.style.background = '#c33';
+clearGraphBtn.style.color = '#fff';
+clearGraphBtn.style.border = '1px solid #888';
+clearGraphBtn.style.borderRadius = '4px';
+clearGraphBtn.style.font = '12px monospace';
+clearGraphBtn.style.padding = '2px 8px';
+clearGraphBtn.onclick = () => {
+  if (confirm('Clear all stored graph data? This cannot be undone.')) {
+    teamMetricsHistory = [];
+    localStorage.removeItem('teamMetricsHistory');
+    updateTeamMetricsChart();
+    clearGraphBtn.textContent = 'Cleared!';
+    setTimeout(() => { clearGraphBtn.textContent = 'Clear Graph Data'; }, 1200);
+  }
+};
+document.getElementById('teamMetricSelect').parentNode.appendChild(clearGraphBtn);
 
 // Add Show/Hide Graph button to UI
 const graphToggleBtn = document.createElement('button');
@@ -3878,6 +3946,7 @@ function gameLoop(timestamp) {
         avgFitness: teamAvgFitness.slice()
       });
       console.log(`teamMetricsHistory now has ${teamMetricsHistory.length} entries`);
+      saveGraphData(); // Save to localStorage
       updateTeamMetricsChart();
       if (winner) {
         saveBrain(winner.brain);
@@ -3993,6 +4062,7 @@ function gameLoop(timestamp) {
         avgFitness: teamAvgFitness.slice()
       });
       console.log(`teamMetricsHistory now has ${teamMetricsHistory.length} entries`);
+      saveGraphData(); // Save to localStorage
       updateTeamMetricsChart();
       if (winner) {
         saveBrain(winner.brain);
