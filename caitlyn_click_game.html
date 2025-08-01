@@ -3731,10 +3731,13 @@ class Turret {
       if (c.team !== this.team && !c.isZed && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < this.range) {
         let cd = this.attackCooldowns.get(c) || 0;
         if (cd <= 0) {
-          // Spawn projectile if not already one targeting this Caitlyn from this turret
-          const already = turretProjectiles.some(p => p.turret === this && p.target === c && p.alive);
-          if (!already) {
-            turretProjectiles.push(new TurretProjectile(this, c));
+          // Spawn laser projectile if not already one targeting this Caitlyn from this turret
+          const alreadyLaser = turretLaserProjectiles.some(p => p.turret === this && p.target === c && p.alive);
+          const alreadyRegular = turretProjectiles.some(p => p.turret === this && p.target === c && p.alive);
+          
+          if (!alreadyLaser && !alreadyRegular) {
+            // Spawn red laser projectile
+            turretLaserProjectiles.push(new TurretLaserProjectile(this, c));
             this.attackCooldowns.set(c, 1.0); // 1s cooldown
           }
         } else {
@@ -3925,6 +3928,9 @@ let turretProjectiles = [];
 
 // Add global array for net projectiles
 let netProjectiles = [];
+
+// Add global array for turret laser projectiles
+let turretLaserProjectiles = [];
 
 // Function to get available turrets for a team (turrets that can be targeted)
 function getAvailableTurrets(attackingTeam) {
@@ -4286,6 +4292,11 @@ function gameLoop(timestamp) {
     turretProjectiles.forEach(p => p.update(delta));
     turretProjectiles.forEach(p => p.draw());
     turretProjectiles = turretProjectiles.filter(p => p.alive);
+    
+    // Update and draw turret laser projectiles
+    turretLaserProjectiles.forEach(p => p.update(delta));
+    turretLaserProjectiles.forEach(p => p.draw());
+    turretLaserProjectiles = turretLaserProjectiles.filter(p => p.alive);
     // Draw nexuses above turrets
     nexuses.forEach(n => n.draw());
     
@@ -5295,6 +5306,93 @@ class TurretProjectile {
     ctx.lineTo(this.target.x, this.target.y);
     ctx.strokeStyle = '#fff';
     ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// TurretLaserProjectile class for enhanced laser effects
+class TurretLaserProjectile {
+  constructor(turret, target) {
+    this.turret = turret;
+    this.target = target;
+    this.x = turret.x;
+    this.y = turret.y;
+    this.speed = 800; // Faster than regular projectiles
+    this.alive = true;
+    this.damage = 120;
+    this.lifetime = 0.5; // Laser lasts 0.5 seconds
+    this.age = 0;
+  }
+  
+  update(delta) {
+    if (!this.alive || !this.target || this.target.hp <= 0) {
+      this.alive = false;
+      return;
+    }
+    
+    this.age += delta;
+    if (this.age >= this.lifetime) {
+      this.alive = false;
+      return;
+    }
+    
+    // Move towards target
+    const dx = this.target.x - this.x;
+    const dy = this.target.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    
+    if (dist < 8) {
+      // Hit target
+      if (this.target.hp > 0) this.target.hp -= this.damage;
+      this.alive = false;
+      return;
+    }
+    
+    const moveX = (dx / dist) * this.speed * delta;
+    const moveY = (dy / dist) * this.speed * delta;
+    
+    this.x += moveX;
+    this.y += moveY;
+  }
+  
+  draw() {
+    if (!this.alive) return;
+    
+    ctx.save();
+    
+    // Draw laser beam with glow effect
+    const gradient = ctx.createLinearGradient(this.x, this.y, this.target.x, this.target.y);
+    gradient.addColorStop(0, '#ff0000');
+    gradient.addColorStop(0.5, '#ff4444');
+    gradient.addColorStop(1, '#ff0000');
+    
+    // Outer glow
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 8;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.target.x, this.target.y);
+    ctx.stroke();
+    
+    // Inner laser
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.target.x, this.target.y);
+    ctx.stroke();
+    
+    // Bright center
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.target.x, this.target.y);
+    ctx.stroke();
+    
     ctx.restore();
   }
 }
