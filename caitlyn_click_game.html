@@ -163,6 +163,15 @@ const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
 // Item shop
 const ITEM_SHOP = [
   {
+    name: 'Magnetic Blaster',
+    cost: 2900,
+    attackSpeed: 35,
+    crit: 25,
+    energized: true,
+    icon: 'magneticblaster.png',
+    stackable: false
+  },
+  {
     name: 'Infinity Edge',
     cost: 3000,
     ad: 70,
@@ -754,6 +763,12 @@ class CaitlynAI {
     this.adGrowth = 3.4;
     this.attackAnimTimer = 0; // Animation timer for attack scale effect
     
+    // Energized system for Magnetic Blaster
+    this.energyStacks = 0;
+    this.maxEnergyStacks = 100;
+    this.energyGainRate = 1; // Base energy gain per second
+    this.energizedReady = false;
+    
     // Debug: log Caitlyn creation
     console.log(`Created Caitlyn (team ${this.team}) at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
   }
@@ -1114,8 +1129,17 @@ class CaitlynAI {
       const hasBFSword = this.items.some(item => item.name === 'BF Sword');
       const hasCloakOfAgility = this.items.some(item => item.name === 'Cloak of Agility');
       
-      // First, try to craft Infinity Edge from BF Sword + Cloak of Agility
-      if (hasBFSword && hasCloakOfAgility && this.gold >= 900) {
+      // Check if Caitlyn has Infinity Edge
+      const hasInfinityEdge = this.items.some(item => item.name === 'Infinity Edge');
+      
+      // First, try to buy Magnetic Blaster if they have Infinity Edge
+      if (hasInfinityEdge && this.gold >= 2900) {
+        const magneticBlaster = ITEM_SHOP.find(item => item.name === 'Magnetic Blaster');
+        this.gold -= 2900;
+        this.items.push(magneticBlaster);
+        this.goldSpent += 2900;
+        console.log(`Caitlyn (team ${this.team}) bought Magnetic Blaster for 2900 gold`);
+      } else if (hasBFSword && hasCloakOfAgility && this.gold >= 900) {
         // Remove BF Sword and Cloak of Agility, add Infinity Edge
         this.items = this.items.filter(item => item.name !== 'BF Sword' && item.name !== 'Cloak of Agility');
         
@@ -1174,6 +1198,25 @@ class CaitlynAI {
     if (!this.canBuy && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) > NEXUS_RADIUS + 50) {
       this.canBuy = true;
     }
+    // Update attack speed from items
+    const totalAttackSpeed = this.getTotalAttackSpeed();
+    this.attackDelay = 1 / totalAttackSpeed;
+    this.attackWindup = HEADSHOT_WINDUP_PCT * this.attackDelay;
+    
+    // Energized system for Magnetic Blaster
+    const hasMagneticBlaster = this.items.some(item => item.name === 'Magnetic Blaster');
+    if (hasMagneticBlaster) {
+      // Energy stacks charge 25% faster with Magnetic Blaster
+      const energyGain = this.energyGainRate * 1.25 * delta;
+      this.energyStacks = Math.min(this.maxEnergyStacks, this.energyStacks + energyGain);
+      
+      // Check if energized is ready
+      if (this.energyStacks >= this.maxEnergyStacks && !this.energizedReady) {
+        this.energizedReady = true;
+        console.log(`Caitlyn ${this.team} energized attack ready!`);
+      }
+    }
+    
     // Trap recharge and placement logic (always runs)
     if (this.trapCharges < TRAP_CAP) {
       this.trapRechargeTimer += delta;
@@ -1350,6 +1393,76 @@ class CaitlynAI {
             this.damageDealt += damage;
             if (realTarget instanceof Turret) this.turretDamage += damage;
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
+            
+            // Handle energized bouncing damage
+            if (isEnergized && energizedDamage > 0) {
+              let currentTarget = realTarget;
+              let bounceCount = 0;
+              const maxBounces = 4;
+              
+              while (bounceCount < maxBounces) {
+                // Find nearest enemy within 500 range
+                let nearestEnemy = null;
+                let nearestDist = 500;
+                
+                // Check Caitlyns
+                for (const c of caitlyns) {
+                  if (c !== currentTarget && c.team !== this.team && c.hp > 0) {
+                    const dist = Math.hypot(c.x - currentTarget.x, c.y - currentTarget.y);
+                    if (dist < nearestDist) {
+                      nearestEnemy = c;
+                      nearestDist = dist;
+                    }
+                  }
+                }
+                
+                // Check minions
+                for (const m of minions) {
+                  if (m !== currentTarget && m.alive && m.team !== this.team) {
+                    const dist = Math.hypot(m.x - currentTarget.x, m.y - currentTarget.y);
+                    if (dist < nearestDist) {
+                      nearestEnemy = m;
+                      nearestDist = dist;
+                    }
+                  }
+                }
+                
+                // Check jungle camps
+                for (const camp of jungleCamps) {
+                  if (camp !== currentTarget && camp.alive) {
+                    const dist = Math.hypot(camp.x - currentTarget.x, camp.y - currentTarget.y);
+                    if (dist < nearestDist) {
+                      nearestEnemy = camp;
+                      nearestDist = dist;
+                    }
+                  }
+                }
+                
+                if (nearestEnemy && nearestEnemy.hp > 0) {
+                  // Apply energized damage (can crit)
+                  let bounceDamage = energizedDamage;
+                  if (critChance > 0 && Math.random() * 100 < critChance) {
+                    bounceDamage = Math.round(bounceDamage * 2);
+                  }
+                  
+                  nearestEnemy.hp -= bounceDamage;
+                  if (nearestEnemy.hp < 0) nearestEnemy.hp = 0;
+                  if (nearestEnemy.hp === 0 && nearestEnemy instanceof Minion) nearestEnemy.alive = false;
+                  
+                  this.damageDealt += bounceDamage;
+                  console.log(`Energized bounce ${bounceCount + 1}: ${bounceDamage} damage to ${nearestEnemy.constructor.name}`);
+                  
+                  // Spawn particles for bounce
+                  spawnDamageParticles(nearestEnemy.x, nearestEnemy.y, bounceDamage, false);
+                  
+                  currentTarget = nearestEnemy;
+                  bounceCount++;
+                } else {
+                  break; // No more targets in range
+                }
+              }
+            }
+            
             // Enhanced particle effects for damage
             if (realTarget instanceof Minion) {
               realTarget.flashColor = isCrit ? '#ff0000' : `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
@@ -1408,6 +1521,19 @@ class CaitlynAI {
         isCrit = true;
       }
       
+      // Check for energized attack (Magnetic Blaster)
+      let isEnergized = false;
+      let energizedDamage = 0;
+      let energizedRange = 0;
+      if (this.energizedReady && hasMagneticBlaster) {
+        isEnergized = true;
+        energizedDamage = 50 + (this.level - 1) * 4; // 50-120 based on level
+        energizedRange = 50 + (this.level - 1) * 4; // 50-120 bonus range
+        this.energyStacks = 0; // Consume all energy
+        this.energizedReady = false;
+        console.log(`Caitlyn ${this.team} using energized attack! Damage: ${energizedDamage}, Range: ${energizedRange}`);
+      }
+      
       if (this.headshotReady || (target.trapped || target.netted)) {
         damage += Math.round(this.getAD() * HEADSHOT_BONUS_MULT);
         this.headshotReady = false;
@@ -1421,8 +1547,13 @@ class CaitlynAI {
           this.headshotReady = true;
         }
       }
+      // Apply energized range bonus
+      if (isEnergized) {
+        attackRange += energizedRange;
+      }
+      
       this.windupTimer = this.attackWindup;
-      this.pendingAttack = { target, damage, isHeadshot, isCrit };
+      this.pendingAttack = { target, damage, isHeadshot, isCrit, isEnergized, energizedDamage, energizedRange };
       this.attackTimer = this.attackDelay;
       // If attacking a minion, set lastHitBy
       if (target && target instanceof Minion) {
@@ -1699,6 +1830,20 @@ class CaitlynAI {
     if (this.hp <= 0 && !this.dead) return;
     // Draw healthbar
     drawHealthbar(this.x, this.y - CAITLYN_RADIUS - 40, 44, 7, this.hp, CAITLYN_BASE_HP + this.getBonusHP());
+    
+    // Draw energy bar for Magnetic Blaster
+    const hasMagneticBlaster = this.items.some(item => item.name === 'Magnetic Blaster');
+    if (hasMagneticBlaster) {
+      const energyPercent = this.energyStacks / this.maxEnergyStacks;
+      ctx.save();
+      ctx.fillStyle = this.energizedReady ? '#00ff00' : '#ffff00';
+      ctx.fillRect(this.x - 22, this.y - CAITLYN_RADIUS - 50, 44 * energyPercent, 4);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(this.x - 22, this.y - CAITLYN_RADIUS - 50, 44, 4);
+      ctx.restore();
+    }
+    
     // Draw attack range circle
     ctx.save();
     ctx.beginPath();
@@ -2096,6 +2241,11 @@ class CaitlynAI {
   getBonusHP() { return this.items.reduce((s, it) => s + (it.hp || 0), 0); }
   getBonusMS() { return this.items.reduce((s, it) => s + (it.ms || 0), 0); }
   getBonusCrit() { return this.items.reduce((s, it) => s + (it.crit || 0), 0); }
+  getBonusAttackSpeed() { return this.items.reduce((s, it) => s + (it.attackSpeed || 0), 0); }
+  getTotalAttackSpeed() { 
+    const bonusAS = this.getBonusAttackSpeed();
+    return this.attackSpeed * (1 + bonusAS / 100); // Convert percentage to multiplier
+  }
   // Add method to start recall (can be called by AI logic or UI)
   startRecall() {
     if (!this.isRecalling && !this.dead) {
