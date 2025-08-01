@@ -20,7 +20,7 @@
 <body>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div id="ui">
-  <label>Mutation Rate: <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1" /></label><br />
+  <label>Mutation Rate: <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.05" /></label><br />
   <label>Attack Bias: <input type="range" id="attackBias" min="-1" max="1" step="0.05" value="0" /></label><br />
   <label>Speed: <input type="range" id="speed" min="1" max="50" step="0.1" value="1.0" /></label><br />
   <button id="showADBtn" style="margin-left:8px;">Show AD</button>
@@ -494,7 +494,7 @@ caitlynImg.onload = () => { caitlynImgLoaded = true; };
 caitlynAutoImg.onload = () => { caitlynAutoImgLoaded = true; };
 
 // TEAMFIGHT CONSTANTS
-const TEAM_SIZE = 5;
+const TEAM_SIZE = 8; // Increased from 5 for better genetic diversity
 const NUM_TEAMS = 2;
 const NUM_CAITLYNS = TEAM_SIZE * NUM_TEAMS;
 const TEAM_COLORS = ['#8e44ad', '#e74c3c'];
@@ -504,13 +504,15 @@ function angleBetween(x1, y1, x2, y2) {
   return Math.atan2(y2 - y1, x2 - x1);
 }
 
-// Simple feedforward neural net (2 hidden layers)
+// Enhanced feedforward neural net (3 hidden layers)
 function feedforward(inputs, weights) {
-  // 35 input, 24 hidden1, 12 hidden2, 11 output
-  const numInputs = 35, H1 = 24, H2 = 12, O = 11;
+  // 35 input, 64 hidden1, 32 hidden2, 16 hidden3, 9 output
+  const numInputs = 35, H1 = 64, H2 = 32, H3 = 16, O = 9;
   let hidden1 = Array(H1).fill(0);
   let hidden2 = Array(H2).fill(0);
+  let hidden3 = Array(H3).fill(0);
   let out = Array(O).fill(0);
+  
   // Input to hidden1
   for (let h = 0; h < H1; ++h) {
     for (let i = 0; i < numInputs; ++i) {
@@ -518,6 +520,7 @@ function feedforward(inputs, weights) {
     }
     hidden1[h] = Math.tanh(hidden1[h] + weights[H1 * numInputs + h]);
   }
+  
   // Hidden1 to hidden2
   let offset = H1 * numInputs + H1;
   for (let h2 = 0; h2 < H2; ++h2) {
@@ -526,13 +529,23 @@ function feedforward(inputs, weights) {
     }
     hidden2[h2] = Math.tanh(hidden2[h2] + weights[offset + H2 * H1 + h2]);
   }
-  // Hidden2 to output
+  
+  // Hidden2 to hidden3
   offset += H2 * H1 + H2;
-  for (let o = 0; o < O; ++o) {
+  for (let h3 = 0; h3 < H3; ++h3) {
     for (let h2 = 0; h2 < H2; ++h2) {
-      out[o] += hidden2[h2] * weights[offset + o * H2 + h2];
+      hidden3[h3] += hidden2[h2] * weights[offset + h3 * H2 + h2];
     }
-    out[o] = Math.tanh(out[o] + weights[offset + O * H2 + o]);
+    hidden3[h3] = Math.tanh(hidden3[h3] + weights[offset + H3 * H2 + h3]);
+  }
+  
+  // Hidden3 to output
+  offset += H3 * H2 + H3;
+  for (let o = 0; o < O; ++o) {
+    for (let h3 = 0; h3 < H3; ++h3) {
+      out[o] += hidden3[h3] * weights[offset + o * H3 + h3];
+    }
+    out[o] = Math.tanh(out[o] + weights[offset + O * H3 + o]);
   }
   return out;
 }
@@ -688,13 +701,15 @@ class CaitlynAI {
     console.log(`Created Caitlyn (team ${this.team}) at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
   }
   static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
-  static HIDDEN1 = 24;
-  static HIDDEN2 = 12;
+  static HIDDEN1 = 64; // Increased from 24 for more capacity
+  static HIDDEN2 = 32; // Increased from 12 for more capacity
+  static HIDDEN3 = 16; // Added third hidden layer for deeper learning
   static OUTPUTS = 9; // moveX, moveY, attack, buy, recall, trap, target, useE, qAngle
   static WEIGHTS_LEN =
     CaitlynAI.INPUTS * CaitlynAI.HIDDEN1 + CaitlynAI.HIDDEN1 +
     CaitlynAI.HIDDEN1 * CaitlynAI.HIDDEN2 + CaitlynAI.HIDDEN2 +
-    CaitlynAI.HIDDEN2 * CaitlynAI.OUTPUTS + CaitlynAI.OUTPUTS;
+    CaitlynAI.HIDDEN2 * CaitlynAI.HIDDEN3 + CaitlynAI.HIDDEN3 +
+    CaitlynAI.HIDDEN3 * CaitlynAI.OUTPUTS + CaitlynAI.OUTPUTS;
   static randomBrain() {
     return Array.from({ length: CaitlynAI.WEIGHTS_LEN }, () => Math.random() * 2 - 1);
   }
@@ -702,7 +717,11 @@ class CaitlynAI {
     let out = brain.slice();
     while (out.length < CaitlynAI.WEIGHTS_LEN) out.push(Math.random() * 2 - 1);
     while (out.length > CaitlynAI.WEIGHTS_LEN) out.pop();
-    return out.map(w => w + (Math.random() * 2 - 1) * rate);
+    
+    // Adaptive mutation rate: decrease over generations for fine-tuning
+    const adaptiveRate = rate * Math.max(0.1, 1 - (generation / 1000)); // Slower mutation after 1000 gens
+    
+    return out.map(w => w + (Math.random() * 2 - 1) * adaptiveRate);
   }
   // In CaitlynAI decide, allow targeting of minions, turrets, or players
   // Add minions and turrets as arguments to decide and update
@@ -2738,6 +2757,13 @@ function initCaitlyns(brain) {
   try {
     caitlyns = [];
     const SPAWN_RADIUS = 120;
+    
+    // Elitism: Keep the best brain unchanged for the first Caitlyn of each team
+    let eliteBrains = [null, null]; // [team0, team1]
+    if (brain) {
+      eliteBrains = [brain.slice(), brain.slice()];
+    }
+    
     for (let t = 0; t < NUM_TEAMS; ++t) {
       for (let i = 0; i < TEAM_SIZE; ++i) {
         // Randomize spawn within a circle around base
@@ -2747,12 +2773,24 @@ function initCaitlyns(brain) {
         const radius = Math.random() * SPAWN_RADIUS;
         const x = baseX + Math.cos(angle) * radius;
         const y = baseY + Math.sin(angle) * radius;
+        
+        // Elitism: First Caitlyn gets the best brain unchanged, others get mutated version
+        let caitlynBrain;
+        if (i === 0 && eliteBrains[t]) {
+          // Elite: Keep best brain unchanged
+          caitlynBrain = eliteBrains[t];
+        } else if (brain) {
+          // Others: Get mutated version
+          const mutationRate = parseFloat(document.getElementById('mutationRate').value);
+          caitlynBrain = CaitlynAI.mutate(brain, mutationRate);
+        }
+        
         let c = new CaitlynAI(
           x,
           y,
           TEAM_COLORS[t],
           t,
-          brain ? brain.slice() : undefined
+          caitlynBrain
         );
         caitlyns.push(c);
       }
@@ -3860,19 +3898,24 @@ function gameLoop(timestamp) {
         c.unspentGold = c.gold;
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
-        c.fitness += c.kills * 100; // Increased kill reward
-        c.fitness += c.assists * 50; // Increased assist reward
-        c.fitness -= c.deaths * 40; // Reduced death penalty
-        c.fitness += c.minionLastHits * 2; // Increased minion last hit reward
-        c.fitness += c.turretsDestroyed * 200; // Increased turret reward
-        c.fitness += c.damageDealt * 0.2; // Increased damage reward
-        c.fitness += c.goldSpent * 0.05; // Increased gold spending reward
-        c.fitness -= Math.floor(c.idleTime / 10) * 5; // Reduced idle penalty
-        c.fitness += c.bushTime * 1.0; // Increased bush time reward
-        c.fitness += c.nexusDamage * 0.5; // Increased nexus damage reward
-        c.fitness -= c.unspentGold * 0.005; // Reduced unspent gold penalty
-        c.fitness += c.survived ? 100 : 0; // Added survival bonus
-        c.fitness += c.turretDamage * 0.1; // Increased turret damage reward
+        // Enhanced fitness calculation with better learning signals
+        c.fitness += c.kills * 200; // Doubled kill reward for stronger signal
+        c.fitness += c.assists * 100; // Doubled assist reward
+        c.fitness -= c.deaths * 30; // Reduced death penalty to encourage risk-taking
+        c.fitness += c.minionLastHits * 5; // Increased minion last hit reward
+        c.fitness += c.turretsDestroyed * 500; // Increased turret reward significantly
+        c.fitness += c.damageDealt * 0.5; // Increased damage reward
+        c.fitness += c.goldSpent * 0.1; // Increased gold spending reward
+        c.fitness -= Math.floor(c.idleTime / 10) * 2; // Reduced idle penalty
+        c.fitness += c.bushTime * 2.0; // Increased bush time reward
+        c.fitness += c.nexusDamage * 2.0; // Increased nexus damage reward significantly
+        c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
+        c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
+        c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
+        // Add time-based bonus for early success
+        if (genDuration < 60) { // First minute bonus
+          c.fitness += c.kills * 100; // Extra reward for early kills
+        }
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
@@ -3988,19 +4031,24 @@ function gameLoop(timestamp) {
         c.unspentGold = c.gold;
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
-        c.fitness += c.kills * 100; // Increased kill reward
-        c.fitness += c.assists * 50; // Increased assist reward
-        c.fitness -= c.deaths * 40; // Reduced death penalty
-        c.fitness += c.minionLastHits * 2; // Increased minion last hit reward
-        c.fitness += c.turretsDestroyed * 200; // Increased turret reward
-        c.fitness += c.damageDealt * 0.2; // Increased damage reward
-        c.fitness += c.goldSpent * 0.05; // Increased gold spending reward
-        c.fitness -= Math.floor(c.idleTime / 10) * 5; // Reduced idle penalty
-        c.fitness += c.bushTime * 1.0; // Increased bush time reward
-        c.fitness += c.nexusDamage * 0.5; // Increased nexus damage reward
-        c.fitness -= c.unspentGold * 0.005; // Reduced unspent gold penalty
-        c.fitness += c.survived ? 100 : 0; // Added survival bonus
-        c.fitness += c.turretDamage * 0.1; // Increased turret damage reward
+        // Enhanced fitness calculation with better learning signals
+        c.fitness += c.kills * 200; // Doubled kill reward for stronger signal
+        c.fitness += c.assists * 100; // Doubled assist reward
+        c.fitness -= c.deaths * 30; // Reduced death penalty to encourage risk-taking
+        c.fitness += c.minionLastHits * 5; // Increased minion last hit reward
+        c.fitness += c.turretsDestroyed * 500; // Increased turret reward significantly
+        c.fitness += c.damageDealt * 0.5; // Increased damage reward
+        c.fitness += c.goldSpent * 0.1; // Increased gold spending reward
+        c.fitness -= Math.floor(c.idleTime / 10) * 2; // Reduced idle penalty
+        c.fitness += c.bushTime * 2.0; // Increased bush time reward
+        c.fitness += c.nexusDamage * 2.0; // Increased nexus damage reward significantly
+        c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
+        c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
+        c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
+        // Add time-based bonus for early success
+        if (genDuration < 60) { // First minute bonus
+          c.fitness += c.kills * 100; // Extra reward for early kills
+        }
         
         // Debug: log fitness breakdown for first few Caitlyns
         if (c.id <= 3) {
