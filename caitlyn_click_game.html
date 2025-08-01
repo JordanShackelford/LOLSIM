@@ -1367,32 +1367,39 @@ class CaitlynAI {
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) {
               console.log(`NEXUS DAMAGE: Applying ${damage} damage to ${realTarget.constructor.name} (team ${realTarget.team}) - HP before: ${realTarget.hp} -> after: ${realTarget.hp - damage}`);
             }
-            console.log(`Applying ${damage} damage to ${realTarget.constructor.name} (HP: ${realTarget.hp} -> ${realTarget.hp - damage})`);
-            realTarget.hp -= damage;
-            if (realTarget.hp < 0) realTarget.hp = 0;
-            if (realTarget.hp === 0 && realTarget instanceof Minion) realTarget.alive = false;
-            if (realTarget.hp === 0 && realTarget instanceof JungleCamp) {
-              realTarget.alive = false;
-              realTarget.clear(); // Start respawn timer
-              // Give gold and XP to the attacker
-              if (realTarget.lastAttacker) {
-                realTarget.lastAttacker.gold += JUNGLE_CAMP_TYPES[realTarget.type].gold || 50;
-                realTarget.lastAttacker.xp += JUNGLE_CAMP_TYPES[realTarget.type].xp || 100;
-                console.log(`Caitlyn ${realTarget.lastAttacker.team} killed ${realTarget.name} for ${JUNGLE_CAMP_TYPES[realTarget.type].gold || 50} gold and ${JUNGLE_CAMP_TYPES[realTarget.type].xp || 100} XP`);
+            // Apply damage using appropriate method for each target type
+            if (realTarget instanceof Turret) {
+              // Use turret's takeDamage method for plating mechanics
+              realTarget.takeDamage(damage, this, true); // Physical damage
+              this.turretDamage += damage;
+            } else {
+              // Standard damage application for other targets
+              console.log(`Applying ${damage} damage to ${realTarget.constructor.name} (HP: ${realTarget.hp} -> ${realTarget.hp - damage})`);
+              realTarget.hp -= damage;
+              if (realTarget.hp < 0) realTarget.hp = 0;
+              if (realTarget.hp === 0 && realTarget instanceof Minion) realTarget.alive = false;
+              if (realTarget.hp === 0 && realTarget instanceof JungleCamp) {
+                realTarget.alive = false;
+                realTarget.clear(); // Start respawn timer
+                // Give gold and XP to the attacker
+                if (realTarget.lastAttacker) {
+                  realTarget.lastAttacker.gold += JUNGLE_CAMP_TYPES[realTarget.type].gold || 50;
+                  realTarget.lastAttacker.xp += JUNGLE_CAMP_TYPES[realTarget.type].xp || 100;
+                  console.log(`Caitlyn ${realTarget.lastAttacker.team} killed ${realTarget.name} for ${JUNGLE_CAMP_TYPES[realTarget.type].gold || 50} gold and ${JUNGLE_CAMP_TYPES[realTarget.type].xp || 100} XP`);
+                }
               }
+              if (realTarget instanceof Minion) {
+                console.log(`Minion ${realTarget.id} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
+              }
+              if (realTarget instanceof JungleCamp) {
+                console.log(`Jungle camp ${realTarget.name} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
+              }
+              if (realTarget === nexuses[0] || realTarget === nexuses[1]) {
+                console.log(`NEXUS DAMAGE CONFIRMED: ${realTarget.constructor.name} (team ${realTarget.team}) HP is now ${realTarget.hp}`);
+              }
+              this.damageDealt += damage;
+              if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
             }
-            if (realTarget instanceof Minion) {
-              console.log(`Minion ${realTarget.id} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
-            }
-            if (realTarget instanceof JungleCamp) {
-              console.log(`Jungle camp ${realTarget.name} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
-            }
-            if (realTarget === nexuses[0] || realTarget === nexuses[1]) {
-              console.log(`NEXUS DAMAGE CONFIRMED: ${realTarget.constructor.name} (team ${realTarget.team}) HP is now ${realTarget.hp}`);
-            }
-            this.damageDealt += damage;
-            if (realTarget instanceof Turret) this.turretDamage += damage;
-            if (realTarget === nexuses[0] || realTarget === nexuses[1]) this.nexusDamage += damage;
             
             // Handle energized bouncing damage
             if (isEnergized && energizedDamage > 0) {
@@ -3561,12 +3568,163 @@ class Turret {
     this.lane = lane;
     this.order = order;
     this.range = TURRET_RANGE;
-    this.hp = 1000; // Optional: turrets can have HP if you want minions to attack them
-    this.maxHp = 1000;
+    
+    // Wild Rift Turret Plating System
+    this.platingActive = true; // Plating active until 5:00
+    this.maxHp = 5000; // 5 plates × 1000 HP each
+    this.hp = this.maxHp;
+    this.platesRemaining = 5;
+    this.plateHp = 1000; // Each plate has 1000 HP
+    
+    // Bulwark System (Anti-Snowball)
+    this.bulwarkArmor = 0;
+    this.bulwarkMR = 0;
+    this.bulwarkTimer = 0;
+    this.bulwarkDuration = 20; // 20 seconds
+    this.maxBulwarkResist = 120; // Cap at +120 armor/MR
+    
+    // Fortification System
+    this.fortified = false;
+    this.fortifyTimer = 0;
+    this.fortifyDelay = 10; // 10 seconds uncontested = fortified
+    this.fortifyDamageReduction = 0.66; // 66% damage reduction
+    
+    // Plate Break Tracking
+    this.recentDamageContributors = new Map(); // Map from Caitlyn to damage dealt
+    this.plateBreakTimer = 0;
+    this.plateBreakWindow = 3; // 3 seconds to get credit for plate break
+    
+    // Base turret stats
+    this.baseArmor = 40;
+    this.baseMR = 40;
     this.attackCooldowns = new Map(); // Map from Caitlyn to cooldown
     this.destroyed = false;
   }
+  
+  // Calculate damage reduction based on armor/MR
+  calculateDamageReduction(damage, isPhysical = true) {
+    const resist = isPhysical ? this.baseArmor + this.bulwarkArmor : this.baseMR + this.bulwarkMR;
+    const damageReduction = resist / (resist + 100); // Standard League formula
+    return damage * (1 - damageReduction);
+  }
+  
+  // Apply damage with all plating mechanics
+  takeDamage(damage, attacker, isPhysical = true) {
+    if (this.destroyed) return;
+    
+    // Check if plating is still active (before 5:00)
+    if (this.platingActive) {
+      // Apply fortification damage reduction if fortified
+      if (this.fortified) {
+        damage *= (1 - this.fortifyDamageReduction);
+        console.log(`Turret fortified: damage reduced by ${this.fortifyDamageReduction * 100}%`);
+      }
+      
+      // Apply resist-based damage reduction
+      damage = this.calculateDamageReduction(damage, isPhysical);
+      
+      // Track damage contributor for plate break gold
+      const currentTime = performance.now() / 1000;
+      this.recentDamageContributors.set(attacker, {
+        damage: (this.recentDamageContributors.get(attacker)?.damage || 0) + damage,
+        lastDamageTime: currentTime
+      });
+      
+      // Apply damage
+      const oldHp = this.hp;
+      this.hp -= damage;
+      if (this.hp < 0) this.hp = 0;
+      
+      // Check for plate break
+      const oldPlates = Math.ceil(oldHp / this.plateHp);
+      const newPlates = Math.ceil(this.hp / this.plateHp);
+      
+      if (newPlates < oldPlates) {
+        // Plate broke!
+        this.platesRemaining = newPlates;
+        this.triggerPlateBreak(attacker);
+      }
+      
+      console.log(`Turret damage: ${damage} (${oldHp} -> ${this.hp}), Plates: ${oldPlates} -> ${newPlates}`);
+    } else {
+      // Post-plating: normal damage
+      damage = this.calculateDamageReduction(damage, isPhysical);
+      this.hp -= damage;
+      if (this.hp < 0) this.hp = 0;
+    }
+    
+    // Check if turret destroyed
+    if (this.hp <= 0 && !this.destroyed) {
+      this.destroyed = true;
+      // Award turret participation to Caitlyns in range
+      for (const c of caitlyns) {
+        if (c.team !== this.team && Math.hypot(c.x - this.x, c.y - this.y) < this.range + 40) {
+          c.turretsDestroyed = (c.turretsDestroyed || 0) + 1;
+        }
+      }
+    }
+  }
+  
+  // Trigger plate break mechanics
+  triggerPlateBreak(attacker) {
+    console.log(`🎯 PLATE BREAK! Turret at (${Math.round(this.x)}, ${Math.round(this.y)})`);
+    
+    // Grant 150 gold to all contributors
+    const currentTime = performance.now() / 1000;
+    const validContributors = [];
+    
+    for (const [contributor, data] of this.recentDamageContributors) {
+      if (currentTime - data.lastDamageTime <= this.plateBreakWindow) {
+        validContributors.push(contributor);
+      }
+    }
+    
+    if (validContributors.length > 0) {
+      const goldPerContributor = 150 / validContributors.length;
+      for (const contributor of validContributors) {
+        contributor.gold += goldPerContributor;
+        console.log(`💰 ${contributor.constructor.name} (team ${contributor.team}) earned ${goldPerContributor} gold from plate break`);
+      }
+    }
+    
+    // Apply bulwark resist bonus
+    this.bulwarkArmor = Math.min(this.maxBulwarkResist, this.bulwarkArmor + 40);
+    this.bulwarkMR = Math.min(this.maxBulwarkResist, this.bulwarkMR + 40);
+    this.bulwarkTimer = this.bulwarkDuration;
+    
+    console.log(`🛡️ Bulwark activated: +${this.bulwarkArmor} armor, +${this.bulwarkMR} MR for ${this.bulwarkDuration}s`);
+  }
+  
   update(caitlyns, minions) {
+    // Update bulwark timer
+    if (this.bulwarkTimer > 0) {
+      this.bulwarkTimer -= 1/60; // Assume 60 FPS
+      if (this.bulwarkTimer <= 0) {
+        this.bulwarkArmor = 0;
+        this.bulwarkMR = 0;
+        console.log(`🛡️ Bulwark expired for turret at (${Math.round(this.x)}, ${Math.round(this.y)})`);
+      }
+    }
+    
+    // Check fortification status
+    const enemiesNearby = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < this.range);
+    
+    if (enemiesNearby.length === 0) {
+      // No enemies nearby, start fortify timer
+      this.fortifyTimer += 1/60;
+      if (this.fortifyTimer >= this.fortifyDelay && !this.fortified) {
+        this.fortified = true;
+        console.log(`🏰 Turret fortified at (${Math.round(this.x)}, ${Math.round(this.y)})`);
+      }
+    } else {
+      // Enemies nearby, reset fortify timer
+      this.fortifyTimer = 0;
+      if (this.fortified) {
+        this.fortified = false;
+        console.log(`⚔️ Turret fortification broken at (${Math.round(this.x)}, ${Math.round(this.y)})`);
+      }
+    }
+    
     // Deal fixed damage to any enemy Caitlyn in range, 1s cooldown per target
     for (const c of caitlyns) {
       if (c.team !== this.team && !c.isZed && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < this.range) {
@@ -3592,21 +3750,64 @@ class Turret {
         p.alive = false;
       }
     }
-    // Minions do NOT get insta-killed
-    if (this.hp <= 0 && !this.destroyed) {
-      this.destroyed = true;
-      // Award turret participation to Caitlyns in range
-      for (const c of caitlyns) {
-        if (c.team !== this.team && Math.hypot(c.x - this.x, c.y - this.y) < this.range + 40) {
-          c.turretsDestroyed = (c.turretsDestroyed || 0) + 1;
-        }
+    
+    // Clean up old damage contributors
+    const currentTime = performance.now() / 1000;
+    for (const [contributor, data] of this.recentDamageContributors) {
+      if (currentTime - data.lastDamageTime > this.plateBreakWindow) {
+        this.recentDamageContributors.delete(contributor);
       }
     }
   }
   draw() {
     ctx.save();
-    // Draw healthbar
-    drawHealthbar(this.x, this.y - 36, 48, 8, this.hp, NEXUS_HP / 2);
+    // Draw healthbar with plating info
+    const maxHp = this.platingActive ? this.maxHp : 2500; // Post-plating: 2500 HP
+    drawHealthbar(this.x, this.y - 36, 48, 8, this.hp, maxHp);
+    
+    // Draw plating plates if active
+    if (this.platingActive && this.platesRemaining > 0) {
+      const plateWidth = 48 / 5; // 5 plates
+      for (let i = 0; i < 5; i++) {
+        const plateX = this.x - 24 + i * plateWidth;
+        const plateY = this.y - 44;
+        const plateHeight = 4;
+        
+        if (i < this.platesRemaining) {
+          // Plate still intact
+          ctx.fillStyle = '#ffd700'; // Gold
+          ctx.fillRect(plateX, plateY, plateWidth - 1, plateHeight);
+        } else {
+          // Plate broken
+          ctx.fillStyle = '#666';
+          ctx.fillRect(plateX, plateY, plateWidth - 1, plateHeight);
+        }
+      }
+    }
+    
+    // Draw fortification indicator
+    if (this.fortified) {
+      ctx.save();
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 30, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    
+    // Draw bulwark indicator
+    if (this.bulwarkTimer > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 35, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     // Draw range indicator
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
@@ -4065,6 +4266,21 @@ function gameLoop(timestamp) {
     // Update and draw turrets
     turrets.forEach(t => t.update(caitlyns, minions));
     turrets.forEach(t => t.draw());
+    
+    // Check for 5:00 plating expiry
+    const gameTimeMinutes = gameSeconds / 60;
+    if (gameTimeMinutes >= 5.0) {
+      turrets.forEach(t => {
+        if (t.platingActive) {
+          t.platingActive = false;
+          t.hp = Math.min(t.hp, 2500); // Set to 2500 if still standing
+          t.bulwarkArmor = 0;
+          t.bulwarkMR = 0;
+          t.bulwarkTimer = 0;
+          console.log(`⏰ Plating expired at 5:00 for turret at (${Math.round(t.x)}, ${Math.round(t.y)})`);
+        }
+      });
+    }
     // Update and draw turret projectiles
     turretProjectiles.forEach(p => p.update(delta));
     turretProjectiles.forEach(p => p.draw());
