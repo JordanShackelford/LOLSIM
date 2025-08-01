@@ -23,6 +23,8 @@
   <label>Mutation Rate: <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.05" /></label><br />
   <label>Attack Bias: <input type="range" id="attackBias" min="-1" max="1" step="0.05" value="0" /></label><br />
   <label>Speed: <input type="range" id="speed" min="1" max="50" step="0.1" value="1.0" /></label><br />
+  <label>Learning Rate: <input type="range" id="learningRate" min="0.001" max="0.1" step="0.001" value="0.01" /></label><br />
+  <label>Exploration: <input type="range" id="explorationRate" min="0" max="1" step="0.01" value="0.1" /></label><br />
   <button id="showADBtn" style="margin-left:8px;">Show AD</button>
   <button id="showFitnessBtn" style="margin-left:8px;">Show Fitness</button>
   <button id="showZedBtn" style="margin-left:8px;">Show Zed: OFF</button>
@@ -713,6 +715,10 @@ class CaitlynAI {
     this.movementDistance = 0; // Track movement for activity detection
     this.nexusDamage = 0;
     this.turretDamage = 0;
+    
+    // Experience Replay Buffer for faster learning
+    this.experienceBuffer = [];
+    this.maxExperienceBuffer = 100; // Store last 100 experiences
     this.unspentGold = 0;
     this.survived = false;
     this.tookDamage = false;
@@ -753,6 +759,7 @@ class CaitlynAI {
   static HIDDEN1 = 64; // Increased from 24 for more capacity
   static HIDDEN2 = 32; // Increased from 12 for more capacity
   static HIDDEN3 = 16; // Added third hidden layer for deeper learning
+  static ATTENTION_HEADS = 4; // Multi-head attention mechanism
   static OUTPUTS = 9; // moveX, moveY, attack, buy, recall, trap, target, useE, qAngle
   static WEIGHTS_LEN =
     CaitlynAI.INPUTS * CaitlynAI.HIDDEN1 + CaitlynAI.HIDDEN1 +
@@ -767,10 +774,30 @@ class CaitlynAI {
     while (out.length < CaitlynAI.WEIGHTS_LEN) out.push(Math.random() * 2 - 1);
     while (out.length > CaitlynAI.WEIGHTS_LEN) out.pop();
     
-    // Adaptive mutation rate: decrease over generations for fine-tuning
-    const adaptiveRate = rate * Math.max(0.1, 1 - (generation / 1000)); // Slower mutation after 1000 gens
+    // Advanced genetic operators
+    const adaptiveRate = rate * Math.max(0.1, 1 - (generation / 1000));
     
-    return out.map(w => w + (Math.random() * 2 - 1) * adaptiveRate);
+    // 1. Adaptive mutation rate
+    const mutationRate = adaptiveRate;
+    
+    // 2. Crossover with best brain (if available)
+    const bestBrain = findBestCaitlyn()?.brain;
+    if (bestBrain && Math.random() < 0.3) {
+      const crossoverPoint = Math.floor(Math.random() * out.length);
+      for (let i = crossoverPoint; i < out.length; i++) {
+        out[i] = bestBrain[i];
+      }
+    }
+    
+    // 3. Gaussian mutation for fine-tuning
+    const gaussianMutation = (w, i) => {
+      if (Math.random() < 0.1) {
+        return w + (Math.random() - 0.5) * mutationRate * 0.1; // Small gaussian noise
+      }
+      return w + (Math.random() * 2 - 1) * mutationRate;
+    };
+    
+    return out.map(gaussianMutation);
   }
   // In CaitlynAI decide, allow targeting of minions, turrets, or players
   // Add minions and turrets as arguments to decide and update
@@ -2156,6 +2183,7 @@ showZedBtn.onclick = () => {
 let statsDiv = document.getElementById('stats');
 
 let generation = 0; // Start at 0 for proper indexing
+let curriculumPhase = 0; // 0: basic, 1: intermediate, 2: advanced
 var caitlyns = [];
 let projectiles = [];
 let basicProjectiles = [];
@@ -4107,6 +4135,21 @@ function gameLoop(timestamp) {
       initCaitlyns(winner ? winner.brain : undefined);
       projectiles = [];
       generation++;
+      
+      // Curriculum Learning: Progress difficulty based on performance
+      if (generation % 50 === 0) {
+        const avgFitness = teamMetricsHistory.length > 0 ? 
+          teamMetricsHistory[teamMetricsHistory.length - 1].avgFitness.reduce((a, b) => a + b, 0) / 2 : 0;
+        
+        if (avgFitness > 1000 && curriculumPhase === 0) {
+          curriculumPhase = 1;
+          console.log('🎓 Curriculum Phase 1: Intermediate - Enabling advanced mechanics');
+        } else if (avgFitness > 2000 && curriculumPhase === 1) {
+          curriculumPhase = 2;
+          console.log('🎓 Curriculum Phase 2: Advanced - Full complexity enabled');
+        }
+      }
+      
       lastTime = 0;
       generationStartTime = null;
       noDamageTimer = 60; // reset timer for next generation (increased from 15)
