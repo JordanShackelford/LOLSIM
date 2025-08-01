@@ -1975,7 +1975,7 @@ class CaitlynAI {
       ctx.shadowBlur = 25 + glowIntensity * 15;
       
       // Choose sprite based on attack state
-      const isAttacking = this.attackTimer > 0 || this.windupTimer > 0;
+      const isAttacking = this.attackAnimTimer > 0 || this.attackTimer > 0 || this.windupTimer > 0;
       const currentSprite = isAttacking ? caitlynAutoImg : caitlynImg;
       const spriteLoaded = isAttacking ? caitlynAutoImgLoaded : caitlynImgLoaded;
       
