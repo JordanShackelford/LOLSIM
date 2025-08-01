@@ -28,6 +28,7 @@
   <button id="showADBtn" style="margin-left:8px;">Show AD</button>
   <button id="showFitnessBtn" style="margin-left:8px;">Show Fitness</button>
   <button id="showZedBtn" style="margin-left:8px;">Show Zed: OFF</button>
+  <button id="debugNexusBtn" style="margin-left:8px;">Debug Nexus: OFF</button>
   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
 </div>
 <div id="teamGraphUI"></div>
@@ -2180,6 +2181,14 @@ showZedBtn.onclick = () => {
   showZed = !showZed;
   showZedBtn.textContent = showZed ? 'Show Zed: ON' : 'Show Zed: OFF';
 };
+
+let debugNexus = false;
+const debugNexusBtn = document.getElementById('debugNexusBtn');
+debugNexusBtn.onclick = () => {
+  debugNexus = !debugNexus;
+  window.debugNexus = debugNexus;
+  debugNexusBtn.textContent = debugNexus ? 'Debug Nexus: ON' : 'Debug Nexus: OFF';
+};
 let statsDiv = document.getElementById('stats');
 
 let generation = 0; // Start at 0 for proper indexing
@@ -3537,6 +3546,12 @@ var nexuses = [
   new Nexus(NEXUS_POS[0].x, NEXUS_POS[0].y, 0),
   new Nexus(NEXUS_POS[1].x, NEXUS_POS[1].y, 1)
 ];
+
+// Debug: Log nexus positions
+console.log('Nexus positions:', {
+  blue: { x: NEXUS_POS[0].x, y: NEXUS_POS[0].y },
+  red: { x: NEXUS_POS[1].x, y: NEXUS_POS[1].y }
+});
 let minions = [];
 let turrets = [];
 let minionSpawnTimers = [0, 0];
@@ -3897,6 +3912,17 @@ function gameLoop(timestamp) {
     turretProjectiles = turretProjectiles.filter(p => p.alive);
     // Draw nexuses above turrets
     nexuses.forEach(n => n.draw());
+    
+    // Debug: Draw nexus positions and info
+    if (window.debugNexus) {
+      nexuses.forEach((n, i) => {
+        ctx.save();
+        ctx.font = '12px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`Nexus ${i}: (${Math.round(n.x)}, ${Math.round(n.y)}) HP: ${Math.round(n.hp)}`, 10, 20 + i * 20);
+        ctx.restore();
+      });
+    }
     
     // 🏥 Draw healing zones around nexuses
     ctx.save();
