@@ -3874,6 +3874,13 @@ function gameLoop(timestamp) {
         }
       });
     });
+    
+    // Update inactivity timer
+    if (damageDone) {
+      noDamageTimer = 15; // Reset timer when damage is done
+    } else {
+      noDamageTimer -= delta; // Decrease timer
+    }
     // --- Add minion projectile collision and damage ---
     minions.forEach(m => {
       projectiles.forEach(p => {
@@ -3887,6 +3894,128 @@ function gameLoop(timestamp) {
       });
     });
 
+    // Check for inactivity timeout
+    const activeCaitlyns = caitlyns.filter(c => c.hp > 0 && !c.dead);
+    if (activeCaitlyns.length <= 1 || noDamageTimer <= 0) {
+      console.log(`End-of-generation logic triggered: Inactivity timeout (${activeCaitlyns.length} alive, timer: ${noDamageTimer.toFixed(1)})`);
+      // Composite Wild Rift-style score
+      for (const c of caitlyns) {
+        c.unspentGold = c.gold;
+        c.survived = (c.hp > 0 && !c.dead);
+        c.fitness = 0;
+        // Enhanced fitness calculation with better learning signals
+        c.fitness += c.kills * 200; // Doubled kill reward for stronger signal
+        c.fitness += c.assists * 100; // Doubled assist reward
+        c.fitness -= c.deaths * 30; // Reduced death penalty to encourage risk-taking
+        c.fitness += c.minionLastHits * 5; // Increased minion last hit reward
+        c.fitness += c.turretsDestroyed * 500; // Increased turret reward significantly
+        c.fitness += c.damageDealt * 0.5; // Increased damage reward
+        c.fitness += c.goldSpent * 0.1; // Increased gold spending reward
+        c.fitness -= Math.floor(c.idleTime / 10) * 2; // Reduced idle penalty
+        c.fitness += c.bushTime * 2.0; // Increased bush time reward
+        c.fitness += c.nexusDamage * 2.0; // Increased nexus damage reward significantly
+        c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
+        c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
+        c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
+      }
+      let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
+      const genDuration = (timestamp - generationStartTime) / 1000;
+      // Add time-based bonus for early success (moved after genDuration is defined)
+      for (const c of caitlyns) {
+        if (genDuration < 60) { // First minute bonus
+          c.fitness += c.kills * 100; // Extra reward for early kills
+        }
+      }
+      const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
+      const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
+      statsDiv.innerHTML =
+        `Generation: ${generation}<br>` +
+        `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+        `Avg Qs: ${avgQs.toFixed(2)}` +
+        '<br><span style="color:#f39c12">Reset due to inactivity</span>';
+      // Team metrics
+      let teamWins = [0, 0];
+      let teamAvgDPM = [0, 0];
+      let teamTotalDPM = [0, 0];
+      let teamGold = [0, 0];
+      // Count wins (optional, not used for evolution)
+      if (winner) teamWins[winner.team] = 1;
+      console.log(`Generation ${generation} winner (inactivity): Team ${winner?.team}, Fitness: ${winner?.fitness?.toFixed(1)}, Kills: ${winner?.kills}, Deaths: ${winner?.deaths}, Damage: ${winner?.damageDealt?.toFixed(1)}`);
+      console.log('All Caitlyns fitness (inactivity):', caitlyns.map(c => `Team${c.team}:${c.fitness.toFixed(1)}`).join(', '));
+      // Calculate DPS and total damage per team
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        const dpmList = teamCaitlyns.map(c => genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0);
+        teamAvgDPM[t] = dpmList.reduce((s, d) => s + d, 0) / dpmList.length;
+        teamTotalDPM[t] = teamCaitlyns.reduce((s, c) => s + (genDuration > 0 ? c.damageDealt / (genDuration / 60) : 0), 0);
+        teamGold[t] = teamCaitlyns.reduce((s, c) => s + c.gold, 0);
+      }
+      // Add a function to convert fitness to a rank
+      function fitnessToRank(fitness) {
+        if (fitness > 900) return 'S';
+        if (fitness > 700) return 'A';
+        if (fitness > 500) return 'B';
+        if (fitness > 300) return 'C';
+        return 'D';
+      }
+      let teamAvgRank = [0, 0];
+      let teamAvgFitness = [0, 0];
+      for (let t = 0; t < NUM_TEAMS; ++t) {
+        const teamCaitlyns = caitlyns.filter(c => c.team === t);
+        const avgFitness = teamCaitlyns.reduce((s, c) => s + c.fitness, 0) / teamCaitlyns.length;
+        teamAvgRank[t] = fitnessToRank(avgFitness);
+        teamAvgFitness[t] = avgFitness;
+        console.log(`Team ${t} avgFitness (inactivity): ${avgFitness.toFixed(1)}`);
+      }
+      console.log(`Storing metrics for generation ${generation} (inactivity):`, {
+        avgFitness: teamAvgFitness,
+        wins: teamWins,
+        avgDPM: teamAvgDPM
+      });
+      teamMetricsHistory.push({
+        generation,
+        wins: teamWins.slice(),
+        avgDPM: teamAvgDPM.slice(),
+        totalDPM: teamTotalDPM.slice(),
+        gold: teamGold.slice(),
+        avgRank: teamAvgRank.slice(),
+        avgFitness: teamAvgFitness.slice()
+      });
+      console.log(`teamMetricsHistory now has ${teamMetricsHistory.length} entries`);
+      saveGraphData(); // Save to localStorage
+      updateTeamMetricsChart();
+      if (winner) {
+        saveBrain(winner.brain);
+      }
+      // Reset nexuses
+      console.log(`RESETTING NEXUSES: Generation ${generation} ended, recreating nexuses with full HP`);
+      nexuses = [
+        new Nexus(NEXUS_POS[0].x, NEXUS_POS[0].y, 0),
+        new Nexus(NEXUS_POS[1].x, NEXUS_POS[1].y, 1)
+      ];
+      // Reset turrets
+      turrets = [];
+      for (let team = 0; team < 2; ++team) {
+        for (const pos of TURRET_POSITIONS[team]) {
+          turrets.push(new Turret(pos.x, pos.y, team, pos.lane, pos.order));
+        }
+      }
+      loadTurretPositions(); // <-- ensure this is called after turrets are created
+      // Clear minions and reset spawn timers
+      minions = [];
+      minionSpawnTimers = [0, 0];
+      minionWaveNumbers = [0, 0];
+      initCaitlyns(winner ? winner.brain : undefined);
+      projectiles = [];
+      generation++;
+      lastTime = 0;
+      generationStartTime = null;
+      noDamageTimer = 15; // reset timer for next generation
+      justReset = true;
+      requestAnimationFrame(gameLoop);
+      return; // End this frame
+    }
+    
     // Clamp Nexus HP to zero before checking for game end
     nexuses[0].hp = Math.max(0, nexuses[0].hp);
     nexuses[1].hp = Math.max(0, nexuses[1].hp);
@@ -3912,13 +4041,15 @@ function gameLoop(timestamp) {
         c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
         c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
         c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
-        // Add time-based bonus for early success
+      }
+      let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
+      const genDuration = (timestamp - generationStartTime) / 1000;
+      // Add time-based bonus for early success (moved after genDuration is defined)
+      for (const c of caitlyns) {
         if (genDuration < 60) { // First minute bonus
           c.fitness += c.kills * 100; // Extra reward for early kills
         }
       }
-      let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
-      const genDuration = (timestamp - generationStartTime) / 1000;
       const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
       const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
       statsDiv.innerHTML =
@@ -4045,11 +4176,6 @@ function gameLoop(timestamp) {
         c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
         c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
         c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
-        // Add time-based bonus for early success
-        if (genDuration < 60) { // First minute bonus
-          c.fitness += c.kills * 100; // Extra reward for early kills
-        }
-        
         // Debug: log fitness breakdown for first few Caitlyns
         if (c.id <= 3) {
           console.log(`Caitlyn ${c.id} fitness breakdown: kills=${c.kills}, deaths=${c.deaths}, minionLastHits=${c.minionLastHits}, damageDealt=${c.damageDealt}, goldSpent=${c.goldSpent}, fitness=${c.fitness}`);
@@ -4057,6 +4183,12 @@ function gameLoop(timestamp) {
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
+      // Add time-based bonus for early success (moved after genDuration is defined)
+      for (const c of caitlyns) {
+        if (genDuration < 60) { // First minute bonus
+          c.fitness += c.kills * 100; // Extra reward for early kills
+        }
+      }
       const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
       const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
       statsDiv.innerHTML =
