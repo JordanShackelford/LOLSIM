@@ -218,12 +218,12 @@ const TRAP_MARK_DURATION = 2.5; // seconds
 
 // === JUNGLE CAMPS SYSTEM ===
 const JUNGLE_CAMP_TYPES = {
-  red:    { name: 'Red Buff',    color: '#c33', radius: 28, maxHp: 3000 },
-  blue:   { name: 'Blue Buff',   color: '#39f', radius: 28, maxHp: 3000 },
-  raptors:{ name: 'Raptors',     color: '#fa0', radius: 22, maxHp: 1800 },
-  krugs:  { name: 'Krugs',       color: '#b97a57', radius: 24, maxHp: 2000 },
-  wolves: { name: 'Wolves',      color: '#7ad', radius: 22, maxHp: 1600 },
-  gromp:  { name: 'Gromp',       color: '#4a8', radius: 26, maxHp: 2200 }
+  red:    { name: 'Red Buff',    color: '#c33', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200 },
+  blue:   { name: 'Blue Buff',   color: '#39f', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200 },
+  raptors:{ name: 'Raptors',     color: '#fa0', radius: 22, maxHp: 1800, attackDamage: 15, attackSpeed: 1.2, gold: 60, xp: 120 },
+  krugs:  { name: 'Krugs',       color: '#b97a57', radius: 24, maxHp: 2000, attackDamage: 20, attackSpeed: 1.0, gold: 70, xp: 140 },
+  wolves: { name: 'Wolves',      color: '#7ad', radius: 22, maxHp: 1600, attackDamage: 18, attackSpeed: 1.1, gold: 50, xp: 100 },
+  gromp:  { name: 'Gromp',       color: '#4a8', radius: 26, maxHp: 2200, attackDamage: 22, attackSpeed: 0.9, gold: 80, xp: 160 }
 };
 
 const JUNGLE_CAMP_SPAWNS = [
@@ -255,6 +255,16 @@ class JungleCamp {
     this.name = JUNGLE_CAMP_TYPES[type].name;
     this.respawnTimer = 0;
     this.alive = true;
+    
+    // Combat properties
+    this.attackRange = 80; // Attack range in pixels
+    this.attackDamage = JUNGLE_CAMP_TYPES[type].attackDamage || 20;
+    this.attackSpeed = JUNGLE_CAMP_TYPES[type].attackSpeed || 1.0;
+    this.attackTimer = 0;
+    this.attackDelay = 1 / this.attackSpeed;
+    this.target = null;
+    this.aggroRange = 120; // Range to aggro on Caitlyns
+    this.lastAttacker = null; // Track who attacked last for gold/xp
   }
   
   update(delta) {
@@ -263,7 +273,45 @@ class JungleCamp {
       if (this.respawnTimer <= 0) {
         this.hp = this.maxHp;
         this.alive = true;
+        this.target = null;
+        this.lastAttacker = null;
       }
+      return;
+    }
+    
+    // Combat logic
+    this.attackTimer -= delta;
+    
+    // Find nearest Caitlyn in aggro range
+    let nearestCaitlyn = null;
+    let nearestDist = Infinity;
+    
+    caitlyns.forEach(caitlyn => {
+      if (caitlyn.hp > 0 && !caitlyn.dead) {
+        const dist = Math.hypot(this.x - caitlyn.x, this.y - caitlyn.y);
+        if (dist < this.aggroRange && dist < nearestDist) {
+          nearestDist = dist;
+          nearestCaitlyn = caitlyn;
+        }
+      }
+    });
+    
+    // Attack logic
+    if (nearestCaitlyn && nearestDist <= this.attackRange) {
+      this.target = nearestCaitlyn;
+      if (this.attackTimer <= 0) {
+        // Attack the Caitlyn
+        nearestCaitlyn.hp -= this.attackDamage;
+        this.attackTimer = this.attackDelay;
+        
+        // Visual feedback
+        nearestCaitlyn.flashColor = '#ff4444';
+        nearestCaitlyn.flashTimer = 0.2;
+        
+        console.log(`${this.name} attacked Caitlyn for ${this.attackDamage} damage`);
+      }
+    } else {
+      this.target = null;
     }
   }
   
@@ -506,8 +554,8 @@ function angleBetween(x1, y1, x2, y2) {
 
 // Enhanced feedforward neural net (3 hidden layers)
 function feedforward(inputs, weights) {
-  // 35 input, 64 hidden1, 32 hidden2, 16 hidden3, 9 output
-  const numInputs = 35, H1 = 64, H2 = 32, H3 = 16, O = 9;
+  // 44 input, 64 hidden1, 32 hidden2, 16 hidden3, 9 output
+  const numInputs = 44, H1 = 64, H2 = 32, H3 = 16, O = 9;
   let hidden1 = Array(H1).fill(0);
   let hidden2 = Array(H2).fill(0);
   let hidden3 = Array(H3).fill(0);
@@ -701,7 +749,7 @@ class CaitlynAI {
     // Debug: log Caitlyn creation
     console.log(`Created Caitlyn (team ${this.team}) at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
   }
-  static INPUTS = 35; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy)
+  static INPUTS = 44; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy) + 9 for jungle camps
   static HIDDEN1 = 64; // Increased from 24 for more capacity
   static HIDDEN2 = 32; // Increased from 12 for more capacity
   static HIDDEN3 = 16; // Added third hidden layer for deeper learning
@@ -823,6 +871,20 @@ class CaitlynAI {
       
     // 🏥 Add healing zone inputs (2 values)
     inputs.push(inHealingZone, healingZoneProximity);
+    
+    // 🌿 Add jungle camp information (3 nearest camps: dx, dy, hp)
+    let aliveJungleCamps = jungleCamps.filter(camp => camp.alive);
+    aliveJungleCamps.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (let i = 0; i < 3; ++i) {
+      const camp = aliveJungleCamps[i];
+      if (camp) {
+        inputs.push((camp.x - me.x) / CANVAS_WIDTH);
+        inputs.push((camp.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(camp.hp / camp.maxHp); // Normalized HP
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
       if (minion) {
         inputs.push((minion.x - me.x) / CANVAS_WIDTH);
         inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
@@ -863,7 +925,7 @@ class CaitlynAI {
       console.error('Neural net output NaN:', out, inputs, this.brain);
     }
     // Outputs: moveX, moveY, attackProb, useQProb, buyProb, recallProb, trapProb, useE, qAngle
-    let targetType = Math.max(0, Math.min(3, Math.floor((out[4] + 1) * 2))); // Changed to 4 types (0-3)
+    let targetType = Math.max(0, Math.min(4, Math.floor((out[4] + 1) * 2.5))); // Changed to 5 types (0-4)
     let targetIdx = 0;
     let target = null;
     if (targetType === 0) {
@@ -904,6 +966,15 @@ class CaitlynAI {
         }
       } else {
         console.log(`Caitlyn ${this.team} cannot target nexus - no lanes fully cleared`);
+      }
+    } else if (targetType === 4) {
+      // Jungle Camps
+      let aliveJungleCamps = jungleCamps.filter(camp => camp.alive);
+      if (aliveJungleCamps.length > 0) {
+        // Closest jungle camp
+        aliveJungleCamps.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+        target = aliveJungleCamps[0];
+        console.log(`Caitlyn ${this.team} targeting jungle camp ${target.name} at distance ${Math.hypot(target.x - this.x, target.y - this.y)}`);
       }
     }
     const [moveX, moveY, attack, useQ, buy, recall, trap, useE, useR, qAngle, rTarget] = out;
@@ -1228,8 +1299,21 @@ class CaitlynAI {
             realTarget.hp -= damage;
             if (realTarget.hp < 0) realTarget.hp = 0;
             if (realTarget.hp === 0 && realTarget instanceof Minion) realTarget.alive = false;
+            if (realTarget.hp === 0 && realTarget instanceof JungleCamp) {
+              realTarget.alive = false;
+              realTarget.clear(); // Start respawn timer
+              // Give gold and XP to the attacker
+              if (realTarget.lastAttacker) {
+                realTarget.lastAttacker.gold += JUNGLE_CAMP_TYPES[realTarget.type].gold || 50;
+                realTarget.lastAttacker.xp += JUNGLE_CAMP_TYPES[realTarget.type].xp || 100;
+                console.log(`Caitlyn ${realTarget.lastAttacker.team} killed ${realTarget.name} for ${JUNGLE_CAMP_TYPES[realTarget.type].gold || 50} gold and ${JUNGLE_CAMP_TYPES[realTarget.type].xp || 100} XP`);
+              }
+            }
             if (realTarget instanceof Minion) {
               console.log(`Minion ${realTarget.id} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
+            }
+            if (realTarget instanceof JungleCamp) {
+              console.log(`Jungle camp ${realTarget.name} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
             }
             if (realTarget === nexuses[0] || realTarget === nexuses[1]) {
               console.log(`NEXUS DAMAGE CONFIRMED: ${realTarget.constructor.name} (team ${realTarget.team}) HP is now ${realTarget.hp}`);
@@ -1315,6 +1399,11 @@ class CaitlynAI {
       if (target && target instanceof Minion) {
         target.lastHitBy = this;
         console.log(`Caitlyn ${this.team} set lastHitBy on minion ${target.id} (${target.type})`);
+      }
+      // If attacking a jungle camp, set lastAttacker
+      if (target && target instanceof JungleCamp) {
+        target.lastAttacker = this;
+        console.log(`Caitlyn ${this.team} attacking jungle camp ${target.name}`);
       }
       return;
     } else {
