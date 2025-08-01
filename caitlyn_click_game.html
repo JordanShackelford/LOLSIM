@@ -29,6 +29,7 @@
   <button id="showFitnessBtn" style="margin-left:8px;">Show Fitness</button>
   <button id="showZedBtn" style="margin-left:8px;">Show Zed: OFF</button>
   <button id="debugNexusBtn" style="margin-left:8px;">Debug Nexus: OFF</button>
+  <button id="zoomToBestBtn" style="margin-left:8px;">Zoom to Best: ON</button>
   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
 </div>
 <div id="teamGraphUI"></div>
@@ -2189,6 +2190,14 @@ debugNexusBtn.onclick = () => {
   window.debugNexus = debugNexus;
   debugNexusBtn.textContent = debugNexus ? 'Debug Nexus: ON' : 'Debug Nexus: OFF';
 };
+
+let zoomToBest = true;
+const zoomToBestBtn = document.getElementById('zoomToBestBtn');
+zoomToBestBtn.onclick = () => {
+  zoomToBest = !zoomToBest;
+  window.zoomToBestCaitlyn = zoomToBest;
+  zoomToBestBtn.textContent = zoomToBest ? 'Zoom to Best: ON' : 'Zoom to Best: OFF';
+};
 let statsDiv = document.getElementById('stats');
 
 let generation = 0; // Start at 0 for proper indexing
@@ -3921,6 +3930,23 @@ function gameLoop(timestamp) {
         ctx.fillStyle = '#fff';
         ctx.fillText(`Nexus ${i}: (${Math.round(n.x)}, ${Math.round(n.y)}) HP: ${Math.round(n.hp)}`, 10, 20 + i * 20);
         ctx.restore();
+      });
+    }
+    
+    // Always show both nexuses with a simple indicator if they're off-screen
+    if (window.zoomToBestCaitlyn) {
+      nexuses.forEach((n, i) => {
+        const screenX = (n.x - cameraX) * cameraZoom + CANVAS_WIDTH / 2;
+        const screenY = (n.y - cameraY) * cameraZoom + CANVAS_HEIGHT / 2;
+        
+        // If nexus is off-screen, show an arrow pointing to it
+        if (screenX < 0 || screenX > CANVAS_WIDTH || screenY < 0 || screenY > CANVAS_HEIGHT) {
+          ctx.save();
+          ctx.font = 'bold 16px Arial';
+          ctx.fillStyle = TEAM_COLORS[i];
+          ctx.fillText(`Nexus ${i} →`, screenX < 0 ? 10 : CANVAS_WIDTH - 80, screenY < 0 ? 30 : CANVAS_HEIGHT - 10);
+          ctx.restore();
+        }
       });
     }
     
