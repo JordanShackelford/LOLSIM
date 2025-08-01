@@ -1402,7 +1402,7 @@ class CaitlynAI {
             }
             
             // Handle energized bouncing damage
-            if (isEnergized && energizedDamage > 0) {
+            if (this.pendingAttack.isEnergized && this.pendingAttack.energizedDamage > 0) {
               let currentTarget = realTarget;
               let bounceCount = 0;
               const maxBounces = 4;
@@ -1447,7 +1447,7 @@ class CaitlynAI {
                 
                 if (nearestEnemy && nearestEnemy.hp > 0) {
                   // Apply energized damage (can crit)
-                  let bounceDamage = energizedDamage;
+                  let bounceDamage = this.pendingAttack.energizedDamage;
                   if (critChance > 0 && Math.random() * 100 < critChance) {
                     bounceDamage = Math.round(bounceDamage * 2);
                   }
@@ -1529,6 +1529,7 @@ class CaitlynAI {
       }
       
       // Check for energized attack (Magnetic Blaster)
+      const hasMagneticBlaster = this.items.some(item => item.name === 'Magnetic Blaster');
       let isEnergized = false;
       let energizedDamage = 0;
       let energizedRange = 0;
