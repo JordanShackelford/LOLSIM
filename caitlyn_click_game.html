@@ -662,6 +662,7 @@ class CaitlynAI {
     this.bushTime = 0;
     this.lastActiveTime = performance.now() / 1000;
     this.lastPosition = { x: x, y: y };
+    this.movementDistance = 0; // Track movement for activity detection
     this.nexusDamage = 0;
     this.turretDamage = 0;
     this.unspentGold = 0;
@@ -2070,7 +2071,7 @@ var caitlyns = [];
 let projectiles = [];
 let basicProjectiles = [];
 
-let noDamageTimer = 15; // 15 seconds timeout for inactivity
+let noDamageTimer = 60; // 60 seconds timeout for inactivity (increased from 15)
 let generationStartTime = null;
 
 // Use localStorage for brain persistence
@@ -3875,9 +3876,18 @@ function gameLoop(timestamp) {
       });
     });
     
-    // Update inactivity timer
-    if (damageDone) {
-      noDamageTimer = 15; // Reset timer when damage is done
+    // Update inactivity timer with more sophisticated detection
+    let activityDetected = damageDone;
+    
+    // Check for other types of activity (attacks, movement, etc.)
+    caitlyns.forEach(c => {
+      if (c.attackAttempts > 0 || c.qAttempts > 0 || Math.abs(c.x - c.lastPosition.x) > 5 || Math.abs(c.y - c.lastPosition.y) > 5) {
+        activityDetected = true;
+      }
+    });
+    
+    if (activityDetected) {
+      noDamageTimer = 60; // Reset timer when any activity is detected
     } else {
       noDamageTimer -= delta; // Decrease timer
     }
@@ -4010,7 +4020,7 @@ function gameLoop(timestamp) {
       generation++;
       lastTime = 0;
       generationStartTime = null;
-      noDamageTimer = 15; // reset timer for next generation
+      noDamageTimer = 60; // reset timer for next generation (increased from 15)
       justReset = true;
       requestAnimationFrame(gameLoop);
       return; // End this frame
