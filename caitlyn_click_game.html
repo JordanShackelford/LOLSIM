@@ -913,7 +913,15 @@ class CaitlynAI {
     // Add 3 nearest enemy minions (dx, dy, hp)
     for (let i = 0; i < 3; ++i) {
       const minion = enemyMinions[i];
-      
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp); // Normalized HP
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+
     // 🏥 Add healing zone inputs (2 values)
     inputs.push(inHealingZone, healingZoneProximity);
     
@@ -926,14 +934,6 @@ class CaitlynAI {
         inputs.push((camp.x - me.x) / CANVAS_WIDTH);
         inputs.push((camp.y - me.y) / CANVAS_HEIGHT);
         inputs.push(camp.hp / camp.maxHp); // Normalized HP
-      } else {
-        inputs.push(0, 0, 0);
-      }
-    }
-      if (minion) {
-        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
-        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
-        inputs.push(minion.hp / minion.baseHp); // Normalized HP
       } else {
         inputs.push(0, 0, 0);
       }
