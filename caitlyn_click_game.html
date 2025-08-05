@@ -31,6 +31,7 @@
   <button id="debugNexusBtn" style="margin-left:8px;">Debug Nexus: OFF</button>
   <button id="zoomToBestBtn" style="margin-left:8px;">Zoom to Best: ON</button>
   <div id="stats">Generation: 1<br>Avg Attacks: 0<br>Avg Qs: 0<br></div>
+<div id="cooldowns"></div>
 </div>
 <div id="teamGraphUI"></div>
 <div id="gameTimer" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #ffff00; font-size: 36px; font-weight: bold; padding: 15px 30px; border-radius: 10px; z-index: 1000; font-family: Arial;">0:00</div>
@@ -153,8 +154,8 @@ const MINION_TYPES = {
 
 const CAITLYN_BASE_HP = 580;
 const CAITLYN_BASE_AD = 59;  // Set to correct base AD
-const CAITLYN_BASE_AS = 0.625;
-const CAITLYN_AS_RATIO = 0.681;
+const CAITLYN_BASE_AS = 0.681;
+const CAITLYN_AS_RATIO = 0.625;
 const CAITLYN_ARMOR = 0;
 const CAITLYN_MR = 0;
 const CAITLYN_ATTACK_RANGE_UNITS = 650 * 2; // double original range
@@ -162,50 +163,21 @@ const CAITLYN_ATTACK_RANGE = CAITLYN_ATTACK_RANGE_UNITS * GAME_UNIT_TO_PX;
 
 // Item shop
 const ITEM_SHOP = [
-  {
-    name: 'Magnetic Blaster',
-    cost: 2900,
-    attackSpeed: 35,
-    crit: 25,
-    energized: true,
-    icon: 'magneticblaster.png',
-    stackable: false
-  },
-  {
-    name: 'Infinity Edge',
-    cost: 3000,
-    ad: 70,
-    crit: 25,
-    icon: 'infinityedge.png',
-    stackable: false
-  },
-  {
-    name: 'BF Sword',
-    cost: 1500,
-    ad: 40,
-    icon: 'bfsword.png',
-    stackable: false
-  },
-  {
-    name: 'Cloak of Agility',
-    cost: 600,
-    crit: 15,
-    icon: 'cloakofagility.png',
-    stackable: true
-  },
-  {
-    name: 'Long Sword',
-    cost: 500,
-    ad: 12,
-    icon: 'longsword.png',
-    stackable: true
-  }
+    { name: 'Rapid Firecannon', cost: 2500, attackSpeed: 35, crit: 25, energized: true, icon: 'rapid_firecannon.png' },
+    { name: 'Stormrazor', cost: 2700, ad: 45, attackSpeed: 15, crit: 25, energized: true, slow: true, icon: 'stormrazor.png' },
+    { name: 'Bloodthirster', cost: 3400, ad: 55, crit: 25, lifesteal: 15, icon: 'bloodthirster.png' },
+    { name: 'Lord Dominik\'s Regards', cost: 3000, ad: 35, crit: 25, armorPen: 35, icon: 'lord_dominiks_regards.png' },
+    { name: 'Guardian Angel', cost: 2800, ad: 40, armor: 40, revive: true, icon: 'guardian_angel.png' },
+    { name: 'Infinity Edge', cost: 3400, ad: 70, crit: 25, icon: 'infinity_edge.png' },
+    { name: 'B. F. Sword', cost: 1300, ad: 40, icon: 'bf_sword.png' },
+    { name: 'Cloak of Agility', cost: 600, crit: 20, icon: 'cloak_of_agility.png' },
+    { name: 'Long Sword', cost: 350, ad: 10, icon: 'long_sword.png' }
 ];
 
 // Headshot constants
-const HEADSHOT_STACKS_NEEDED = 6;
-const HEADSHOT_STACKS_BRUSH = 2;
-const HEADSHOT_BONUS_MULT = 0.5; // 50% bonus AD
+const HEADSHOT_STACKS_NEEDED = 5;
+const HEADSHOT_STACKS_BRUSH = 4;
+const HEADSHOT_BONUS_MULT = 0.6; // 60% bonus AD
 const HEADSHOT_RANGE_UNITS = 1300 / 3; // 1/3 original
 const HEADSHOT_WINDUP_PCT = 0.17708; // 17.7%
 
@@ -222,38 +194,23 @@ const Q_BASE_DAMAGE = 210; // Base damage at max rank
 // Trap constants
 const TRAP_CAP = 3;
 const TRAP_RECHARGE = 0.1; // seconds per trap
-const TRAP_DURATION = 90; // seconds
-const TRAP_ARM_TIME = 1.0; // seconds
+const TRAP_DURATION = 30; // seconds
+const TRAP_ARM_TIME = 1.1; // seconds
 const TRAP_TRIGGER_RADIUS_UNITS = 67.5;
 const TRAP_ROOT_DURATION = 1.5; // seconds
 const TRAP_REVEAL_DURATION = 3; // seconds
 const TRAP_MARK_DURATION = 2.5; // seconds
 
-// === JUNGLE CAMPS SYSTEM ===
 const JUNGLE_CAMP_TYPES = {
-  red:    { name: 'Red Buff',    color: '#c33', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200, buffType: 'red' },
-  blue:   { name: 'Blue Buff',   color: '#39f', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200, buffType: 'blue' },
-  raptors:{ name: 'Raptors',     color: '#fa0', radius: 22, maxHp: 1800, attackDamage: 15, attackSpeed: 1.2, gold: 60, xp: 120 },
-  krugs:  { name: 'Krugs',       color: '#b97a57', radius: 24, maxHp: 2000, attackDamage: 20, attackSpeed: 1.0, gold: 70, xp: 140 },
-  wolves: { name: 'Wolves',      color: '#7ad', radius: 22, maxHp: 1600, attackDamage: 18, attackSpeed: 1.1, gold: 50, xp: 100 },
-  gromp:  { name: 'Gromp',       color: '#4a8', radius: 26, maxHp: 2200, attackDamage: 22, attackSpeed: 0.9, gold: 80, xp: 160 }
+    blue: { name: 'Blue Sentinel', color: '#33F', radius: 20, hp: 1500, ad: 40, as: 0.6, gold: 100, xp: 100, buff: 'blue' },
+    red: { name: 'Red Brambleback', color: '#F33', radius: 20, hp: 1500, ad: 40, as: 0.6, gold: 100, xp: 100, buff: 'red' },
+    scuttler: { name: 'Rift Scuttler', color: '#F93', radius: 15, hp: 500, ad: 10, as: 0.5, gold: 70, xp: 50, buff: 'scuttler' }
 };
 
 const JUNGLE_CAMP_SPAWNS = [
-  // Blue side
-  { type: 'red',    x: 250,  y: 650 },
-  { type: 'blue',   x: 250,  y: 150 },
-  { type: 'raptors',x: 400,  y: 500 },
-  { type: 'krugs',  x: 150,  y: 750 },
-  { type: 'wolves', x: 400,  y: 250 },
-  { type: 'gromp',  x: 150,  y: 350 },
-  // Red side
-  { type: 'red',    x: 950,  y: 150 },
-  { type: 'blue',   x: 950,  y: 650 },
-  { type: 'raptors',x: 800,  y: 300 },
-  { type: 'krugs',  x: 1050, y: 50  },
-  { type: 'wolves', x: 800,  y: 550 },
-  { type: 'gromp',  x: 1050, y: 450 }
+    { type: 'blue', x: 350, y: 750 },
+    { type: 'red', x: 750, y: 350 },
+    { type: 'scuttler', x: 600, y: 600 }
 ];
 
 class JungleCamp {
@@ -442,6 +399,10 @@ function distToNearestBush(x, y) {
   return minDist;
 }
 
+function inRiver(x, y) {
+    return y > CANVAS_HEIGHT * 0.4 && y < CANVAS_HEIGHT * 0.6;
+}
+
 // Basic Ability drawing helper
 class Ability {
   static drawProjectile(x, y, color, type) {
@@ -567,8 +528,8 @@ function angleBetween(x1, y1, x2, y2) {
 
 // Enhanced feedforward neural net (3 hidden layers)
 function feedforward(inputs, weights) {
-  // 304 input, 64 hidden1, 32 hidden2, 16 hidden3, 9 output
-  const numInputs = 304, H1 = 64, H2 = 32, H3 = 16, O = 9;
+  // 44 input, 64 hidden1, 32 hidden2, 16 hidden3, 9 output
+  const numInputs = 44, H1 = 64, H2 = 32, H3 = 16, O = 9;
   let hidden1 = Array(H1).fill(0);
   let hidden2 = Array(H2).fill(0);
   let hidden3 = Array(H3).fill(0);
@@ -689,6 +650,24 @@ class CaitlynAI {
     this.qWindup = 0; // Q cast windup timer
     this.qActive = false; // Q is being cast
     this.qProjectile = null; // Q projectile reference
+
+    // W (Trap)
+    this.wCooldown = 0;
+    this.wCharges = 0;
+    this.wMaxCharges = 3;
+    this.wRechargeTime = 30;
+
+    // E (Net)
+    this.eCooldown = 0;
+    this.eRange = 800;
+    this.eSpeed = 1600;
+    this.eSlowDuration = 1.5;
+
+    // R (Ultimate)
+    this.rCooldown = 0;
+    this.rRange = 2000;
+    this.rChannelTime = 1;
+    this.rDamage = 300;
     // Trap-related properties
     this.traps = [];
     this.trapCooldown = 0;
@@ -726,8 +705,6 @@ class CaitlynAI {
     this.movementDistance = 0; // Track movement for activity detection
     this.nexusDamage = 0;
     this.turretDamage = 0;
-    this.jungleCampsTaken = 0;
-    this.buffs = [];
     
     // Experience Replay Buffer for faster learning
     this.experienceBuffer = [];
@@ -736,7 +713,7 @@ class CaitlynAI {
     this.survived = false;
     this.tookDamage = false;
     // In CaitlynAI constructor, add E ability state
-    this.eCooldown = 16;
+    this.eCooldown = 0;
     this.eActive = false;
     this.eSlowTimer = 0;
     this.eSlowedBy = null;
@@ -774,13 +751,14 @@ class CaitlynAI {
     // Debug: log Caitlyn creation
     console.log(`Created Caitlyn (team ${this.team}) at (${Math.round(this.x)}, ${Math.round(this.y)}) with ${this.hp} HP`);
   }
-  static INPUTS = 304; // 38 per-frame features, stacked over 8 frames
-  static HIDDEN1 = 64;
-  static HIDDEN2 = 32;
-  static HIDDEN3 = 16;
+  static INPUTS = 44; // 18 original + 9 for traps + eCooldown + nearestEnemyDist + 6 for minion info (3 friendly, 3 enemy) + 9 for jungle camps
+  static HIDDEN1 = 64; // Increased from 24 for more capacity
+  static HIDDEN2 = 32; // Increased from 12 for more capacity
+  static HIDDEN3 = 16; // Added third hidden layer for deeper learning
+  static ATTENTION_HEADS = 4; // Multi-head attention mechanism
   static OUTPUTS = 9; // moveX, moveY, attack, buy, recall, trap, target, useE, qAngle
   static WEIGHTS_LEN =
-    304 * CaitlynAI.HIDDEN1 + CaitlynAI.HIDDEN1 +
+    CaitlynAI.INPUTS * CaitlynAI.HIDDEN1 + CaitlynAI.HIDDEN1 +
     CaitlynAI.HIDDEN1 * CaitlynAI.HIDDEN2 + CaitlynAI.HIDDEN2 +
     CaitlynAI.HIDDEN2 * CaitlynAI.HIDDEN3 + CaitlynAI.HIDDEN3 +
     CaitlynAI.HIDDEN3 * CaitlynAI.OUTPUTS + CaitlynAI.OUTPUTS;
@@ -788,7 +766,6 @@ class CaitlynAI {
     return Array.from({ length: CaitlynAI.WEIGHTS_LEN }, () => Math.random() * 2 - 1);
   }
   static mutate(brain, rate) {
-    console.log("Mutation rate:", rate);
     let out = brain.slice();
     while (out.length < CaitlynAI.WEIGHTS_LEN) out.push(Math.random() * 2 - 1);
     while (out.length > CaitlynAI.WEIGHTS_LEN) out.pop();
@@ -828,6 +805,20 @@ class CaitlynAI {
     const myBush = whichBush(this.x, this.y);
     let enemies = allCaitlyns.filter(c => c.team !== this.team && c.hp > 0 && (myBush === -1 || whichBush(c.x, c.y) === myBush || whichBush(c.x, c.y) === -1));
     let allies = allCaitlyns.filter(c => c.team === this.team && c !== this && c.hp > 0);
+    // Self Stats
+    inputs.push(me.hp / me.maxHp);
+    inputs.push(me.getAD() / 200);
+    inputs.push(me.getTotalAttackSpeed() / 2);
+    inputs.push(me.armor / 100);
+    inputs.push(me.mr / 100);
+    inputs.push(me.moveSpeed / 500);
+
+    // Cooldowns
+    inputs.push(me.qTimer / 10);
+    inputs.push(me.traps.length / TRAP_CAP);
+    inputs.push(me.eCooldown / 16);
+    inputs.push(me.rCooldown / 120);
+
     // For each enemy: dx, dy, hp (max TEAM_SIZE)
     for (let i = 0; i < TEAM_SIZE; ++i) {
       let e = enemies[i] || { x: 0, y: 0, hp: 0 };
@@ -914,14 +905,6 @@ class CaitlynAI {
     // Add 3 nearest enemy minions (dx, dy, hp)
     for (let i = 0; i < 3; ++i) {
       const minion = enemyMinions[i];
-      if (minion) {
-        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
-        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
-        inputs.push(minion.hp / minion.baseHp); // Normalized HP
-      } else {
-        inputs.push(0, 0, 0);
-      }
-    }
 
     // 🏥 Add healing zone inputs (2 values)
     inputs.push(inHealingZone, healingZoneProximity);
@@ -935,6 +918,14 @@ class CaitlynAI {
         inputs.push((camp.x - me.x) / CANVAS_WIDTH);
         inputs.push((camp.y - me.y) / CANVAS_HEIGHT);
         inputs.push(camp.hp / camp.maxHp); // Normalized HP
+      } else {
+        inputs.push(0, 0, 0);
+      }
+    }
+      if (minion) {
+        inputs.push((minion.x - me.x) / CANVAS_WIDTH);
+        inputs.push((minion.y - me.y) / CANVAS_HEIGHT);
+        inputs.push(minion.hp / minion.baseHp); // Normalized HP
       } else {
         inputs.push(0, 0, 0);
       }
@@ -964,7 +955,7 @@ class CaitlynAI {
     this.inputHistory.push(frameInputs);
     if (this.inputHistory.length > TEMPORAL_FRAMES) this.inputHistory.shift();
     let stackedInputs = this.inputHistory.flat();
-    while (stackedInputs.length < 304) stackedInputs.push(0);
+    while (stackedInputs.length < 37 * TEMPORAL_FRAMES) stackedInputs.push(0);
     // Feed stackedInputs to neural net
     let out = feedforward(stackedInputs, this.brain);
     if (out.some(x => isNaN(x))) {
@@ -1091,15 +1082,21 @@ class CaitlynAI {
       return;
     }
     if (this.hp <= 0) {
-      // Award 300 gold to the last enemy Caitlyn who hit this one
-      if (this.lastHitBy && this.lastHitBy.team !== this.team) {
-        this.lastHitBy.gold += 300;
+      const guardianAngel = this.items.find(item => item.name === 'Guardian Angel');
+      if (guardianAngel) {
+          this.hp = this.maxHp * 0.5;
+          this.items = this.items.filter(item => item.name !== 'Guardian Angel');
+      } else {
+        // Award 300 gold to the last enemy Caitlyn who hit this one
+        if (this.lastHitBy && this.lastHitBy.team !== this.team) {
+            this.lastHitBy.gold += 300;
+        }
+        // On death, set respawn timer to fixed duration (5 seconds)
+        this.respawnTimer = 5.0;
+        this.dead = true;
+        console.log(`Caitlyn (team ${this.team}) died, respawn timer set to ${this.respawnTimer}s`);
+        return;
       }
-      // On death, set respawn timer to fixed duration (5 seconds)
-      this.respawnTimer = 5.0;
-      this.dead = true;
-      console.log(`Caitlyn (team ${this.team}) died, respawn timer set to ${this.respawnTimer}s`);
-      return;
     }
     // Recall logic
     if (this.isRecalling) {
@@ -1205,18 +1202,13 @@ class CaitlynAI {
     this.attackDelay = 1 / totalAttackSpeed;
     this.attackWindup = HEADSHOT_WINDUP_PCT * this.attackDelay;
     
-    // Energized system for Magnetic Blaster
-    const hasMagneticBlaster = this.items.some(item => item.name === 'Magnetic Blaster');
-    if (hasMagneticBlaster) {
-      // Energy stacks charge 25% faster with Magnetic Blaster
-      const energyGain = this.energyGainRate * 1.25 * delta;
-      this.energyStacks = Math.min(this.maxEnergyStacks, this.energyStacks + energyGain);
-      
-      // Check if energized is ready
-      if (this.energyStacks >= this.maxEnergyStacks && !this.energizedReady) {
-        this.energizedReady = true;
-        console.log(`Caitlyn ${this.team} energized attack ready!`);
-      }
+    // Energized Items Logic
+    const energizedItem = this.items.find(item => item.energized);
+    if (energizedItem) {
+        this.energyStacks = Math.min(100, this.energyStacks + this.moveSpeed * delta * 0.1);
+        if (this.energyStacks >= 100) {
+            this.energizedReady = true;
+        }
     }
     
     // Trap recharge and placement logic (always runs)
@@ -1227,19 +1219,21 @@ class CaitlynAI {
         this.trapRechargeTimer = 0;
       }
     }
-    // Remove expired traps
-    this.traps = this.traps.filter(trap => trap.alive && (performance.now() / 1000) < trap.expiresAt);
-    // Place trap randomly if available and not too many active
-    if (this.trapCharges > 0 && this.traps.length < TRAP_CAP && Math.random() < 0.01) {
-      // Only allow trap placement within 40 units of Caitlyn's current position
-      const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * 40; // max 40 units
-      const tx = Math.max(20, Math.min(CANVAS_WIDTH - 20, this.x + Math.cos(angle) * radius));
-      const ty = Math.max(20, Math.min(CANVAS_HEIGHT - 20, this.y + Math.sin(angle) * radius));
-      this.traps.push(new Trap(this, tx, ty));
-      this.trapCharges--;
-      this.lastTrapPlaced = performance.now() / 1000;
+    // W (Trap) Logic
+    if (this.wCharges < this.wMaxCharges) {
+        this.wCooldown += delta;
+        if (this.wCooldown >= this.wRechargeTime) {
+            this.wCharges++;
+            this.wCooldown = 0;
+        }
     }
+
+    if (trap > 0.5 && this.wCharges > 0) {
+        this.traps.push(new Trap(this, this.x, this.y));
+        this.wCharges--;
+    }
+
+    this.traps.forEach(t => t.update(now));
     // Trap logic: arming, triggering
     for (const trap of this.traps) {
       trap.update(now);
@@ -1387,13 +1381,6 @@ class CaitlynAI {
                 if (realTarget.lastAttacker) {
                   realTarget.lastAttacker.gold += JUNGLE_CAMP_TYPES[realTarget.type].gold || 50;
                   realTarget.lastAttacker.xp += JUNGLE_CAMP_TYPES[realTarget.type].xp || 100;
-                  realTarget.lastAttacker.jungleCampsTaken = (realTarget.lastAttacker.jungleCampsTaken || 0) + 1;
-                  if (JUNGLE_CAMP_TYPES[realTarget.type].buffType) {
-                    realTarget.lastAttacker.buffs.push({
-                      type: JUNGLE_CAMP_TYPES[realTarget.type].buffType,
-                      duration: 90,
-                    });
-                  }
                   console.log(`Caitlyn ${realTarget.lastAttacker.team} killed ${realTarget.name} for ${JUNGLE_CAMP_TYPES[realTarget.type].gold || 50} gold and ${JUNGLE_CAMP_TYPES[realTarget.type].xp || 100} XP`);
                 }
               }
@@ -1402,6 +1389,9 @@ class CaitlynAI {
               }
               if (realTarget instanceof JungleCamp) {
                 console.log(`Jungle camp ${realTarget.name} after: HP=${realTarget.hp}, alive=${realTarget.alive}`);
+                if (realTarget.hp <= 0) {
+                    this.applyBuff(realTarget.type);
+                }
               }
               if (realTarget === nexuses[0] || realTarget === nexuses[1]) {
                 console.log(`NEXUS DAMAGE CONFIRMED: ${realTarget.constructor.name} (team ${realTarget.team}) HP is now ${realTarget.hp}`);
@@ -1551,6 +1541,23 @@ class CaitlynAI {
         console.log(`Caitlyn ${this.team} using energized attack! Damage: ${energizedDamage}, Range: ${energizedRange}`);
       }
       
+      // Life Steal
+      const bloodthirster = this.items.find(item => item.name === 'Bloodthirster');
+      if (bloodthirster) {
+          this.hp = Math.min(this.maxHp, this.hp + damage * (bloodthirster.lifesteal / 100));
+      }
+
+      // Armor Penetration
+      const lordDominiks = this.items.find(item => item.name === 'Lord Dominik\'s Regards');
+      if (lordDominiks && target.armor) {
+          damage *= (1 + (target.armor * (lordDominiks.armorPen / 100)) / 100);
+      }
+
+      if (this.redBuffTimer > 0) {
+          target.hp -= 10 + this.level * 2; // True damage
+          target.slowTimer = 2;
+      }
+
       if (this.headshotReady || (target.trapped || target.netted)) {
         damage += Math.round(this.getAD() * HEADSHOT_BONUS_MULT);
         this.headshotReady = false;
@@ -1719,22 +1726,13 @@ class CaitlynAI {
       this.eSlowTimer -= delta;
       if (this.eSlowTimer <= 0) this.eSlowedBy = null;
     }
-    // Use E if off cooldown, not dead, and target in range (for now, use randomly for demo)
-    if (!this.dead && this.eCooldown <= 0 && this.useEIntent > 0.5) {
-      if (this.spendMana(75)) {
-        // Fire net in a direction (for now, away from nearest enemy)
-        let angle = Math.random() * Math.PI * 2;
-        if (others && others.length > 0) {
-          // Fire away from nearest enemy
-          let nearest = others.filter(o => o.team !== this.team && o.hp > 0)[0];
-          if (nearest) angle = Math.atan2(this.y - nearest.y, this.x - nearest.x);
-        }
-        netProjectiles.push(new NetProjectile(this, this.x, this.y, angle));
-        // Knock Caitlyn back
-        this.x += Math.cos(angle) * -60;
-        this.y += Math.sin(angle) * -60;
-        this.eCooldown = 16; // fixed cooldown for now
-      }
+    // E (Net) Logic
+    if (useE > 0.5 && this.eCooldown <= 0) {
+        let angle = qAngle * Math.PI;
+        projectiles.push(new NetProjectile(this, this.x, this.y, angle, this.eRange, this.eSpeed));
+        this.x -= Math.cos(angle) * 100;
+        this.y -= Math.sin(angle) * 100;
+        this.eCooldown = 16;
     }
     // R cooldown
     this.rCooldown -= delta;
@@ -1750,27 +1748,25 @@ class CaitlynAI {
       }
       return; // Can't do anything else while channeling
     }
-    // If useR and R is ready, find target and start channel
-    if (useR && this.rCooldown <= 0 && !this.rChanneling) {
-      if (this.spendMana(100)) {
-        // Find enemy Caitlyns in range (3500 units)
-        const enemiesInRange = caitlyns.filter(c => c.team !== this.team && c.hp > 0 && c.constructor && c.constructor.name === 'CaitlynAI' && Math.hypot(c.x - this.x, c.y - this.y) < 3500 * GAME_UNIT_TO_PX);
+    // R (Ultimate) Logic
+    if (useR > 0.5 && this.rCooldown <= 0) {
+        let enemiesInRange = others.filter(o => o.team !== this.team && o.hp > 0 && Math.hypot(this.x - o.x, this.y - o.y) < this.rRange);
         if (enemiesInRange.length > 0) {
-          // Select target based on rTarget output
-          const idx = Math.floor(Math.abs(rTarget) * enemiesInRange.length) % enemiesInRange.length;
-          const candidate = enemiesInRange[idx];
-          // Final strict check: only allow enemy Caitlyns, never turrets/minions/other
-          if (candidate && candidate.team !== this.team && candidate !== this && candidate.constructor && candidate.constructor.name === 'CaitlynAI') {
-            this.rTarget = candidate;
+            let target = enemiesInRange.reduce((lowest, enemy) => enemy.hp < lowest.hp ? enemy : lowest, enemiesInRange[0]);
+            this.rTarget = target;
             this.rChanneling = true;
-            this.rChannelTime = 3.0; // 3s channel (was 1.0)
-          } else {
-            // Debug overlay removed to prevent errors
-            this.rTarget = null;
-            this.rChanneling = false;
-          }
         }
-      }
+    }
+
+    if (this.rChanneling) {
+        this.rChannelTime -= delta;
+        if (this.rChannelTime <= 0) {
+            this.rChanneling = false;
+            let angle = Math.atan2(this.rTarget.y - this.y, this.rTarget.x - this.x);
+            projectiles.push(new UltProjectile(this, this.x, this.y, angle, this.rRange, this.rDamage));
+            this.rCooldown = 120;
+            this.rChannelTime = 1;
+        }
     }
     // Auto-recall if gold >= 500, not dead, not recalling, not at base
     if (!this.dead && !this.isRecalling && this.gold >= 500 && Math.hypot(this.x - NEXUS_POS[this.team].x, this.y - NEXUS_POS[this.team].y) > NEXUS_RADIUS + 10) {
@@ -1819,29 +1815,22 @@ class CaitlynAI {
     } else if (nudgeDistMoved >= 2) {
       this._lastNudgeTime = now;
     }
+    // Buffs
+    if (this.blueBuffTimer > 0) {
+        this.blueBuffTimer -= delta;
+        this.mana = Math.min(this.maxMana, this.mana + this.maxMana * 0.02 * delta);
+        this.qCooldown -= this.qCooldown * 0.1 * delta;
+        this.wCooldown -= this.wCooldown * 0.1 * delta;
+        this.eCooldown -= this.eCooldown * 0.1 * delta;
+        this.rCooldown -= this.rCooldown * 0.1 * delta;
+    }
+    if (this.redBuffTimer > 0) {
+        this.redBuffTimer -= delta;
+    }
+
     // In CaitlynAI.update, at the start of each frame, regen mana
     this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * delta);
     if (this.attackAnimTimer > 0) this.attackAnimTimer = Math.max(0, this.attackAnimTimer - delta);
-
-    // Apply buffs
-    this.buffs = this.buffs.filter(buff => buff.duration > 0);
-    this.buffs.forEach(buff => {
-        buff.duration -= delta;
-        if (buff.type === 'red') {
-            // Apply red buff damage over time to enemies
-            others.forEach(enemy => {
-                if (enemy.team !== this.team) {
-                    const dist = Math.hypot(this.x - enemy.x, this.y - enemy.y);
-                    if (dist < this.attackRange) {
-                        enemy.hp -= 5 * delta;
-                    }
-                }
-            });
-        } else if (buff.type === 'blue') {
-            // Apply blue buff mana regen
-            this.mana = Math.min(this.maxMana, this.mana + 10 * delta);
-        }
-    });
     
     // 🏥 Healing zone around own nexus (10% HP and mana per second)
     const ownNexus = nexuses[this.team];
@@ -2315,6 +2304,19 @@ class CaitlynAI {
   getAD() {
     return this.baseAD + this.adGrowth * (this.level - 1);
   }
+
+  applyBuff(buffType) {
+      if (buffType === 'blue') {
+          this.blueBuffTimer = 120;
+      } else if (buffType === 'red') {
+          this.redBuffTimer = 120;
+      } else if (buffType === 'scuttler') {
+          scuttlerShrine = {
+              team: this.team,
+              timer: 90
+          };
+      }
+  }
 }
 
 let mutationRateSlider = document.getElementById('mutationRate');
@@ -2392,6 +2394,7 @@ let curriculumPhase = 0; // 0: basic, 1: intermediate, 2: advanced
 var caitlyns = [];
 let projectiles = [];
 let basicProjectiles = [];
+let scuttlerShrine = null;
 
 let noDamageTimer = 60; // 60 seconds timeout for inactivity (increased from 15)
 let generationStartTime = null;
@@ -3236,36 +3239,37 @@ class Minion {
     this.attackTimer -= delta;
     if (!this.path || this.path.length < 2) return;
     if (!this.targetNexus) return;
-    // Target selection: prioritize enemy minion in range, then champion, then turret, then Nexus
+    // Target selection
+    let potentialTargets = [];
+    // Enemy minions
+    potentialTargets.push(...minions.filter(m => m.team !== this.team && m.alive));
+    // Enemy champions
+    potentialTargets.push(...caitlyns.filter(c => c.team !== this.team && !c.dead));
+    // Enemy turrets
+    potentialTargets.push(...turrets.filter(t => t.team !== this.team && !t.destroyed));
+    // Enemy nexus
+    potentialTargets.push(nexuses[1 - this.team]);
+
     let bestTarget = null;
-    let bestDist = 1e9;
-    // Bush vision: only target enemies in same bush or not in bush
-    const myBush = whichBush(this.x, this.y);
-    // 1. Enemy minion in range
-    for (const other of minions) {
-      if (other !== this && other.alive && other.team !== this.team) {
-        const otherBush = whichBush(other.x, other.y);
-        if (myBush !== -1 && otherBush !== myBush && otherBush !== -1) continue;
-        const dist = Math.hypot(this.x - other.x, this.y - other.y);
-        if (dist < this.range && dist < bestDist) {
-          bestTarget = other;
-          bestDist = dist;
+    let minDistance = Infinity;
+
+    for (const target of potentialTargets) {
+        const distance = Math.hypot(this.x - target.x, this.y - target.y);
+        if (distance < this.range && distance < minDistance) {
+            bestTarget = target;
+            minDistance = distance;
         }
-      }
     }
-    // 2. Enemy Caitlyn in range
-    if (!bestTarget) {
-      for (const c of caitlyns) {
-        if (c.team !== this.team && c.hp > 0) {
-          const cBush = whichBush(c.x, c.y);
-          if (myBush !== -1 && cBush !== myBush && cBush !== -1) continue;
-          const dist = Math.hypot(this.x - c.x, this.y - c.y);
-          if (dist < this.range && dist < bestDist) {
-            bestTarget = c;
-            bestDist = dist;
-          }
+
+    // Aggro onto champions attacking allied champions
+    for (const c of caitlyns) {
+        if (c.team !== this.team && !c.dead && c.pendingAttack && c.pendingAttack.target && c.pendingAttack.target.team === this.team) {
+            const distance = Math.hypot(this.x - c.x, this.y - c.y);
+            if (distance < this.range) {
+                bestTarget = c;
+                break;
+            }
         }
-      }
     }
     // 3. Enemy turret in range (only available turrets)
     if (!bestTarget) {
@@ -3755,26 +3759,40 @@ class Turret {
       }
     }
     
-    // Deal fixed damage to any enemy Caitlyn in range, 1s cooldown per target
-    for (const c of caitlyns) {
-      if (c.team !== this.team && !c.isZed && c.hp > 0 && Math.hypot(c.x - this.x, c.y - this.y) < this.range) {
-        let cd = this.attackCooldowns.get(c) || 0;
-        if (cd <= 0) {
-          // Spawn laser projectile if not already one targeting this Caitlyn from this turret
-          const alreadyLaser = turretLaserProjectiles.some(p => p.turret === this && p.target === c && p.alive);
-          const alreadyRegular = turretProjectiles.some(p => p.turret === this && p.target === c && p.alive);
-          
-          if (!alreadyLaser && !alreadyRegular) {
-            // Spawn red laser projectile
-            turretLaserProjectiles.push(new TurretLaserProjectile(this, c));
-            this.attackCooldowns.set(c, 1.0); // 1s cooldown
-          }
-        } else {
-          this.attackCooldowns.set(c, cd - 1/60); // Assume 60 FPS for cooldown decrement
+    // Targeting Logic
+    let potentialTargets = [];
+    // Enemy champions
+    potentialTargets.push(...caitlyns.filter(c => c.team !== this.team && !c.dead));
+    // Enemy minions
+    potentialTargets.push(...minions.filter(m => m.team !== this.team && m.alive));
+
+    let bestTarget = null;
+    let minDistance = Infinity;
+
+    for (const target of potentialTargets) {
+        const distance = Math.hypot(this.x - target.x, this.y - target.y);
+        if (distance < this.range && distance < minDistance) {
+            bestTarget = target;
+            minDistance = distance;
         }
-      } else {
-        this.attackCooldowns.set(c, 0);
-      }
+    }
+
+    // Attack Target
+    if (bestTarget) {
+        let cd = this.attackCooldowns.get(bestTarget) || 0;
+        if (cd <= 0) {
+            let damage = 150;
+            if (bestTarget.isChampion) {
+                this.rampingDamage = (this.rampingDamage || 0) + 25;
+                damage += this.rampingDamage;
+            } else {
+                this.rampingDamage = 0;
+            }
+            bestTarget.hp -= damage;
+            this.attackCooldowns.set(bestTarget, 1.0);
+        } else {
+            this.attackCooldowns.set(bestTarget, cd - 1/60);
+        }
     }
     // Apply damage when projectile reaches target
     for (const p of turretProjectiles) {
@@ -3960,61 +3978,6 @@ let netProjectiles = [];
 
 // Add global array for turret laser projectiles
 let turretLaserProjectiles = [];
-
-const E_SLOW_AMOUNT = 0.5; // 50% slow
-
-// NetProjectile class
-class NetProjectile {
-  constructor(owner, x, y, angle) {
-    this.owner = owner;
-    this.x = x;
-    this.y = y;
-    this.angle = angle;
-    this.speed = 1000 * GAME_UNIT_TO_PX;
-    this.range = 750 * GAME_UNIT_TO_PX;
-    this.distanceTraveled = 0;
-    this.radius = 12;
-    this.alive = true;
-  }
-  update(delta, caitlyns) {
-    if (!this.alive) return;
-    const dx = Math.cos(this.angle) * this.speed * delta;
-    const dy = Math.sin(this.angle) * this.speed * delta;
-    this.x += dx;
-    this.y += dy;
-    this.distanceTraveled += Math.hypot(dx, dy);
-    if (this.distanceTraveled > this.range) {
-      this.alive = false;
-      return;
-    }
-    // Hit detection
-    for (const c of caitlyns) {
-      if (c === this.owner || c.hp <= 0 || c.team === this.owner.team) continue;
-      if (Math.hypot(c.x - this.x, c.y - this.y) < this.radius + CAITLYN_RADIUS) {
-        // Apply magic damage and slow
-        c.hp -= 80; // base magic damage
-        c.eSlowTimer = 1;
-        c.eSlowedBy = this.owner;
-        this.alive = false;
-        break;
-      }
-    }
-  }
-  draw() {
-    if (!this.alive) return;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#00eaff';
-    ctx.globalAlpha = 0.7;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#2196f3';
-    ctx.stroke();
-    ctx.restore();
-  }
-}
 
 // Function to get available turrets for a team (turrets that can be targeted)
 function getAvailableTurrets(attackingTeam) {
@@ -4298,26 +4261,6 @@ function gameLoop(timestamp) {
     // In the main game rendering loop, at the very start (before drawing units):
     drawMapOverlay(ctx);
     drawMinionPaths(ctx);
-
-    // Fog of War
-    const fowCanvas = document.createElement('canvas');
-    fowCanvas.width = CANVAS_WIDTH;
-    fowCanvas.height = CANVAS_HEIGHT;
-    const fowCtx = fowCanvas.getContext('2d');
-
-    fowCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    fowCtx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-    caitlyns.forEach(c => {
-        if (c.team === 0) {
-            fowCtx.globalCompositeOperation = 'destination-out';
-            fowCtx.beginPath();
-            fowCtx.arc(c.x, c.y, 200, 0, Math.PI * 2);
-            fowCtx.fill();
-        }
-    });
-
-    ctx.drawImage(fowCanvas, 0, 0);
     // ... existing code ...
 
     // Draw bushes
@@ -4366,6 +4309,20 @@ function gameLoop(timestamp) {
         minionSpawnTimers[t] = 0;
       }
     }
+    // Scuttler Shrine
+    if (scuttlerShrine) {
+        scuttlerShrine.timer -= delta;
+        if (scuttlerShrine.timer <= 0) {
+            scuttlerShrine = null;
+        } else {
+            caitlyns.forEach(c => {
+                if (c.team === scuttlerShrine.team && inRiver(c.x, c.y)) {
+                    c.moveSpeed *= 1.2;
+                }
+            });
+        }
+    }
+
     // Update/draw jungle camps
     jungleCamps.forEach(camp => camp.update(delta));
     jungleCamps.forEach(camp => camp.draw(ctx));
@@ -4565,23 +4522,12 @@ function gameLoop(timestamp) {
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
         // Enhanced fitness calculation with better learning signals
-        c.fitness += c.kills * 200; // Doubled kill reward for stronger signal
-        c.fitness += c.assists * 100; // Doubled assist reward
-        c.fitness -= c.deaths * 30; // Reduced death penalty to encourage risk-taking
-        c.fitness += c.minionLastHits * 5; // Increased minion last hit reward
-        c.fitness += c.turretsDestroyed * 500; // Increased turret reward significantly
-        c.fitness += c.damageDealt * 0.5; // Increased damage reward
-        c.fitness += c.goldSpent * 0.1; // Increased gold spending reward
-        c.fitness -= Math.floor(c.idleTime / 10) * 2; // Reduced idle penalty
-        c.fitness += c.bushTime * 2.0; // Increased bush time reward
-        c.fitness += c.nexusDamage * 2.0; // Increased nexus damage reward significantly
-        c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
-        c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
-        c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
-
-        // Add rewards for taking jungle camps
-        const jungleCampsTaken = c.jungleCampsTaken || 0;
-        c.fitness += jungleCampsTaken * 50;
+        c.fitness += c.kills * 100;
+        c.fitness += c.assists * 50;
+        c.fitness -= c.deaths * 50;
+        c.fitness += c.gold * 1;
+        c.fitness += c.turretsDestroyed * 200;
+        c.fitness += c.nexusDamage * 500;
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
@@ -4596,8 +4542,36 @@ function gameLoop(timestamp) {
       statsDiv.innerHTML =
         `Generation: ${generation}<br>` +
         `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
-        `Avg Qs: ${avgQs.toFixed(2)}` +
-        '<br><span style="color:#f39c12">Reset due to inactivity</span>';
+        `Avg Qs: ${avgQs.toFixed(2)}<br>` +
+        `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
+        `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+
+      let cooldownsDiv = document.getElementById('cooldowns');
+      cooldownsDiv.innerHTML = `
+        Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
+        W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
+        E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
+        R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
+      `;
+
+      let buffsDiv = document.getElementById('buffs');
+      if (!buffsDiv) {
+          buffsDiv = document.createElement('div');
+          buffsDiv.id = 'buffs';
+          uiDiv.appendChild(buffsDiv);
+      }
+      buffsDiv.innerHTML = `
+        Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
+        Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
+      `;
+
+      let itemsDiv = document.getElementById('items');
+      if (!itemsDiv) {
+            itemsDiv = document.createElement('div');
+            itemsDiv.id = 'items';
+            uiDiv.appendChild(itemsDiv);
+      }
+      itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       // Team metrics
       let teamWins = [0, 0];
       let teamAvgDPM = [0, 0];
@@ -4708,19 +4682,12 @@ function gameLoop(timestamp) {
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
         // Enhanced fitness calculation with better learning signals
-        c.fitness += c.kills * 200; // Doubled kill reward for stronger signal
-        c.fitness += c.assists * 100; // Doubled assist reward
-        c.fitness -= c.deaths * 30; // Reduced death penalty to encourage risk-taking
-        c.fitness += c.minionLastHits * 5; // Increased minion last hit reward
-        c.fitness += c.turretsDestroyed * 500; // Increased turret reward significantly
-        c.fitness += c.damageDealt * 0.5; // Increased damage reward
-        c.fitness += c.goldSpent * 0.1; // Increased gold spending reward
-        c.fitness -= Math.floor(c.idleTime / 10) * 2; // Reduced idle penalty
-        c.fitness += c.bushTime * 2.0; // Increased bush time reward
-        c.fitness += c.nexusDamage * 2.0; // Increased nexus damage reward significantly
-        c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
-        c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
-        c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
+        c.fitness += c.kills * 100;
+        c.fitness += c.assists * 50;
+        c.fitness -= c.deaths * 50;
+        c.fitness += c.gold * 1;
+        c.fitness += c.turretsDestroyed * 200;
+        c.fitness += c.nexusDamage * 500;
       }
       let winner = caitlyns.reduce((best, c) => (c.fitness > (best?.fitness ?? -Infinity) ? c : best), null);
       const genDuration = (timestamp - generationStartTime) / 1000;
@@ -4735,8 +4702,36 @@ function gameLoop(timestamp) {
       statsDiv.innerHTML =
         `Generation: ${generation}<br>` +
         `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
-        `Avg Qs: ${avgQs.toFixed(2)}` +
-        '<br><span style="color:#f39c12">Reset due to inactivity</span>';
+        `Avg Qs: ${avgQs.toFixed(2)}<br>` +
+        `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
+        `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+
+      let cooldownsDiv = document.getElementById('cooldowns');
+      cooldownsDiv.innerHTML = `
+        Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
+        W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
+        E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
+        R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
+      `;
+
+      let buffsDiv = document.getElementById('buffs');
+      if (!buffsDiv) {
+          buffsDiv = document.createElement('div');
+          buffsDiv.id = 'buffs';
+          uiDiv.appendChild(buffsDiv);
+      }
+      buffsDiv.innerHTML = `
+        Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
+        Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
+      `;
+
+      let itemsDiv = document.getElementById('items');
+      if (!itemsDiv) {
+            itemsDiv = document.createElement('div');
+            itemsDiv.id = 'items';
+            uiDiv.appendChild(itemsDiv);
+      }
+      itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       // Team metrics
       let teamWins = [0, 0];
       let teamAvgDPM = [0, 0];
@@ -4843,19 +4838,12 @@ function gameLoop(timestamp) {
         c.survived = (c.hp > 0 && !c.dead);
         c.fitness = 0;
         // Enhanced fitness calculation with better learning signals
-        c.fitness += c.kills * 200; // Doubled kill reward for stronger signal
-        c.fitness += c.assists * 100; // Doubled assist reward
-        c.fitness -= c.deaths * 30; // Reduced death penalty to encourage risk-taking
-        c.fitness += c.minionLastHits * 5; // Increased minion last hit reward
-        c.fitness += c.turretsDestroyed * 500; // Increased turret reward significantly
-        c.fitness += c.damageDealt * 0.5; // Increased damage reward
-        c.fitness += c.goldSpent * 0.1; // Increased gold spending reward
-        c.fitness -= Math.floor(c.idleTime / 10) * 2; // Reduced idle penalty
-        c.fitness += c.bushTime * 2.0; // Increased bush time reward
-        c.fitness += c.nexusDamage * 2.0; // Increased nexus damage reward significantly
-        c.fitness -= c.unspentGold * 0.01; // Reduced unspent gold penalty
-        c.fitness += c.survived ? 200 : 0; // Doubled survival bonus
-        c.fitness += c.turretDamage * 0.3; // Increased turret damage reward
+        c.fitness += c.kills * 100;
+        c.fitness += c.assists * 50;
+        c.fitness -= c.deaths * 50;
+        c.fitness += c.gold * 1;
+        c.fitness += c.turretsDestroyed * 200;
+        c.fitness += c.nexusDamage * 500;
         // Debug: log fitness breakdown for first few Caitlyns
         if (c.id <= 3) {
           console.log(`Caitlyn ${c.id} fitness breakdown: kills=${c.kills}, deaths=${c.deaths}, minionLastHits=${c.minionLastHits}, damageDealt=${c.damageDealt}, goldSpent=${c.goldSpent}, fitness=${c.fitness}`);
@@ -4874,8 +4862,36 @@ function gameLoop(timestamp) {
       statsDiv.innerHTML =
         `Generation: ${generation}<br>` +
         `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
-        `Avg Qs: ${avgQs.toFixed(2)}` +
-        '<br><span style="color:#f39c12">Reset: all Caitlyns eliminated</span>';
+        `Avg Qs: ${avgQs.toFixed(2)}<br>` +
+        `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
+        `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+
+      let cooldownsDiv = document.getElementById('cooldowns');
+      cooldownsDiv.innerHTML = `
+        Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
+        W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
+        E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
+        R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
+      `;
+
+      let buffsDiv = document.getElementById('buffs');
+      if (!buffsDiv) {
+          buffsDiv = document.createElement('div');
+          buffsDiv.id = 'buffs';
+          uiDiv.appendChild(buffsDiv);
+      }
+      buffsDiv.innerHTML = `
+        Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
+        Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
+      `;
+
+      let itemsDiv = document.getElementById('items');
+      if (!itemsDiv) {
+            itemsDiv = document.createElement('div');
+            itemsDiv.id = 'items';
+            uiDiv.appendChild(itemsDiv);
+      }
+      itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       // Team metrics
       let teamWins = [0, 0];
       let teamAvgDPM = [0, 0];
