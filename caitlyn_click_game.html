@@ -231,8 +231,8 @@ const TRAP_MARK_DURATION = 2.5; // seconds
 
 // === JUNGLE CAMPS SYSTEM ===
 const JUNGLE_CAMP_TYPES = {
-  red:    { name: 'Red Buff',    color: '#c33', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200 },
-  blue:   { name: 'Blue Buff',   color: '#39f', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200 },
+  red:    { name: 'Red Buff',    color: '#c33', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200, buffType: 'red' },
+  blue:   { name: 'Blue Buff',   color: '#39f', radius: 28, maxHp: 3000, attackDamage: 25, attackSpeed: 0.8, gold: 100, xp: 200, buffType: 'blue' },
   raptors:{ name: 'Raptors',     color: '#fa0', radius: 22, maxHp: 1800, attackDamage: 15, attackSpeed: 1.2, gold: 60, xp: 120 },
   krugs:  { name: 'Krugs',       color: '#b97a57', radius: 24, maxHp: 2000, attackDamage: 20, attackSpeed: 1.0, gold: 70, xp: 140 },
   wolves: { name: 'Wolves',      color: '#7ad', radius: 22, maxHp: 1600, attackDamage: 18, attackSpeed: 1.1, gold: 50, xp: 100 },
@@ -727,6 +727,7 @@ class CaitlynAI {
     this.nexusDamage = 0;
     this.turretDamage = 0;
     this.jungleCampsTaken = 0;
+    this.buffs = [];
     
     // Experience Replay Buffer for faster learning
     this.experienceBuffer = [];
@@ -1387,6 +1388,12 @@ class CaitlynAI {
                   realTarget.lastAttacker.gold += JUNGLE_CAMP_TYPES[realTarget.type].gold || 50;
                   realTarget.lastAttacker.xp += JUNGLE_CAMP_TYPES[realTarget.type].xp || 100;
                   realTarget.lastAttacker.jungleCampsTaken = (realTarget.lastAttacker.jungleCampsTaken || 0) + 1;
+                  if (JUNGLE_CAMP_TYPES[realTarget.type].buffType) {
+                    realTarget.lastAttacker.buffs.push({
+                      type: JUNGLE_CAMP_TYPES[realTarget.type].buffType,
+                      duration: 90,
+                    });
+                  }
                   console.log(`Caitlyn ${realTarget.lastAttacker.team} killed ${realTarget.name} for ${JUNGLE_CAMP_TYPES[realTarget.type].gold || 50} gold and ${JUNGLE_CAMP_TYPES[realTarget.type].xp || 100} XP`);
                 }
               }
@@ -1815,6 +1822,26 @@ class CaitlynAI {
     // In CaitlynAI.update, at the start of each frame, regen mana
     this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * delta);
     if (this.attackAnimTimer > 0) this.attackAnimTimer = Math.max(0, this.attackAnimTimer - delta);
+
+    // Apply buffs
+    this.buffs = this.buffs.filter(buff => buff.duration > 0);
+    this.buffs.forEach(buff => {
+        buff.duration -= delta;
+        if (buff.type === 'red') {
+            // Apply red buff damage over time to enemies
+            others.forEach(enemy => {
+                if (enemy.team !== this.team) {
+                    const dist = Math.hypot(this.x - enemy.x, this.y - enemy.y);
+                    if (dist < this.attackRange) {
+                        enemy.hp -= 5 * delta;
+                    }
+                }
+            });
+        } else if (buff.type === 'blue') {
+            // Apply blue buff mana regen
+            this.mana = Math.min(this.maxMana, this.mana + 10 * delta);
+        }
+    });
     
     // 🏥 Healing zone around own nexus (10% HP and mana per second)
     const ownNexus = nexuses[this.team];
