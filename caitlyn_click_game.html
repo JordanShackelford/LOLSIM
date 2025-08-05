@@ -4216,6 +4216,26 @@ function gameLoop(timestamp) {
     // In the main game rendering loop, at the very start (before drawing units):
     drawMapOverlay(ctx);
     drawMinionPaths(ctx);
+
+    // Fog of War
+    const fowCanvas = document.createElement('canvas');
+    fowCanvas.width = CANVAS_WIDTH;
+    fowCanvas.height = CANVAS_HEIGHT;
+    const fowCtx = fowCanvas.getContext('2d');
+
+    fowCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    fowCtx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    caitlyns.forEach(c => {
+        if (c.team === 0) {
+            fowCtx.globalCompositeOperation = 'destination-out';
+            fowCtx.beginPath();
+            fowCtx.arc(c.x, c.y, 200, 0, Math.PI * 2);
+            fowCtx.fill();
+        }
+    });
+
+    ctx.drawImage(fowCanvas, 0, 0);
     // ... existing code ...
 
     // Draw bushes
