@@ -4539,12 +4539,14 @@ function gameLoop(timestamp) {
       }
       const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
       const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
-      statsDiv.innerHTML =
-        `Generation: ${generation}<br>` +
-        `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
-        `Avg Qs: ${avgQs.toFixed(2)}<br>` +
-        `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
-        `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+      if (caitlyns.length > 0) {
+        statsDiv.innerHTML =
+          `Generation: ${generation}<br>` +
+          `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+          `Avg Qs: ${avgQs.toFixed(2)}<br>` +
+          `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
+          `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+      }
 
       let cooldownsDiv = document.getElementById('cooldowns');
       cooldownsDiv.innerHTML = `
@@ -4699,12 +4701,14 @@ function gameLoop(timestamp) {
       }
       const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
       const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
-      statsDiv.innerHTML =
-        `Generation: ${generation}<br>` +
-        `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
-        `Avg Qs: ${avgQs.toFixed(2)}<br>` +
-        `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
-        `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+      if (caitlyns.length > 0) {
+        statsDiv.innerHTML =
+          `Generation: ${generation}<br>` +
+          `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+          `Avg Qs: ${avgQs.toFixed(2)}<br>` +
+          `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
+          `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+      }
 
       let cooldownsDiv = document.getElementById('cooldowns');
       cooldownsDiv.innerHTML = `
@@ -4859,12 +4863,14 @@ function gameLoop(timestamp) {
       }
       const avgAttacks = caitlyns.reduce((s, c) => s + c.attackAttempts, 0) / caitlyns.length;
       const avgQs = caitlyns.reduce((s, c) => s + c.qAttempts, 0) / caitlyns.length;
-      statsDiv.innerHTML =
-        `Generation: ${generation}<br>` +
-        `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
-        `Avg Qs: ${avgQs.toFixed(2)}<br>` +
-        `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
-        `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+      if (caitlyns.length > 0) {
+        statsDiv.innerHTML =
+          `Generation: ${generation}<br>` +
+          `Avg Attacks: ${avgAttacks.toFixed(2)}<br>` +
+          `Avg Qs: ${avgQs.toFixed(2)}<br>` +
+          `Gold: ${caitlyns[0].gold.toFixed(0)}<br>` +
+          `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
+      }
 
       let cooldownsDiv = document.getElementById('cooldowns');
       cooldownsDiv.innerHTML = `
