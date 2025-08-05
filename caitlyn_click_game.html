@@ -787,6 +787,7 @@ class CaitlynAI {
     return Array.from({ length: CaitlynAI.WEIGHTS_LEN }, () => Math.random() * 2 - 1);
   }
   static mutate(brain, rate) {
+    console.log("Mutation rate:", rate);
     let out = brain.slice();
     while (out.length < CaitlynAI.WEIGHTS_LEN) out.push(Math.random() * 2 - 1);
     while (out.length > CaitlynAI.WEIGHTS_LEN) out.pop();
