@@ -4548,13 +4548,17 @@ function gameLoop(timestamp) {
           `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
       }
 
-      let cooldownsDiv = document.getElementById('cooldowns');
-      cooldownsDiv.innerHTML = `
-        Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
-        W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
-        E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
-        R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
-      `;
+      if (caitlyns.length > 0) {
+        let cooldownsDiv = document.getElementById('cooldowns');
+        if (cooldownsDiv && caitlyns[0]) {
+            cooldownsDiv.innerHTML = `
+              Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
+              W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
+              E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
+              R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
+            `;
+        }
+      }
 
       let buffsDiv = document.getElementById('buffs');
       if (!buffsDiv) {
@@ -4710,13 +4714,17 @@ function gameLoop(timestamp) {
           `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
       }
 
-      let cooldownsDiv = document.getElementById('cooldowns');
-      cooldownsDiv.innerHTML = `
-        Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
-        W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
-        E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
-        R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
-      `;
+      if (caitlyns.length > 0) {
+        let cooldownsDiv = document.getElementById('cooldowns');
+        if (cooldownsDiv && caitlyns[0]) {
+            cooldownsDiv.innerHTML = `
+              Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
+              W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
+              E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
+              R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
+            `;
+        }
+      }
 
       let buffsDiv = document.getElementById('buffs');
       if (!buffsDiv) {
@@ -4872,13 +4880,17 @@ function gameLoop(timestamp) {
           `KDA: ${caitlyns[0].kills}/${caitlyns[0].deaths}/${caitlyns[0].assists}`;
       }
 
-      let cooldownsDiv = document.getElementById('cooldowns');
-      cooldownsDiv.innerHTML = `
-        Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
-        W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
-        E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
-        R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
-      `;
+      if (caitlyns.length > 0) {
+        let cooldownsDiv = document.getElementById('cooldowns');
+        if (cooldownsDiv && caitlyns[0]) {
+            cooldownsDiv.innerHTML = `
+              Q: ${caitlyns[0].qTimer > 0 ? caitlyns[0].qTimer.toFixed(1) : 'Ready'}<br>
+              W: ${caitlyns[0].wCharges} / ${caitlyns[0].wMaxCharges}<br>
+              E: ${caitlyns[0].eCooldown > 0 ? caitlyns[0].eCooldown.toFixed(1) : 'Ready'}<br>
+              R: ${caitlyns[0].rCooldown > 0 ? caitlyns[0].rCooldown.toFixed(1) : 'Ready'}<br>
+            `;
+        }
+      }
 
       let buffsDiv = document.getElementById('buffs');
       if (!buffsDiv) {
