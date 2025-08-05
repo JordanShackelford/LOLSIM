@@ -153,8 +153,8 @@ const MINION_TYPES = {
 
 const CAITLYN_BASE_HP = 580;
 const CAITLYN_BASE_AD = 59;  // Set to correct base AD
-const CAITLYN_BASE_AS = 0.681;
-const CAITLYN_AS_RATIO = 0.625;
+const CAITLYN_BASE_AS = 0.625;
+const CAITLYN_AS_RATIO = 0.681;
 const CAITLYN_ARMOR = 0;
 const CAITLYN_MR = 0;
 const CAITLYN_ATTACK_RANGE_UNITS = 650 * 2; // double original range
@@ -203,9 +203,9 @@ const ITEM_SHOP = [
 ];
 
 // Headshot constants
-const HEADSHOT_STACKS_NEEDED = 5;
-const HEADSHOT_STACKS_BRUSH = 4;
-const HEADSHOT_BONUS_MULT = 0.6; // 60% bonus AD
+const HEADSHOT_STACKS_NEEDED = 6;
+const HEADSHOT_STACKS_BRUSH = 2;
+const HEADSHOT_BONUS_MULT = 0.5; // 50% bonus AD
 const HEADSHOT_RANGE_UNITS = 1300 / 3; // 1/3 original
 const HEADSHOT_WINDUP_PCT = 0.17708; // 17.7%
 
@@ -222,8 +222,8 @@ const Q_BASE_DAMAGE = 210; // Base damage at max rank
 // Trap constants
 const TRAP_CAP = 3;
 const TRAP_RECHARGE = 0.1; // seconds per trap
-const TRAP_DURATION = 30; // seconds
-const TRAP_ARM_TIME = 1.1; // seconds
+const TRAP_DURATION = 90; // seconds
+const TRAP_ARM_TIME = 1.0; // seconds
 const TRAP_TRIGGER_RADIUS_UNITS = 67.5;
 const TRAP_ROOT_DURATION = 1.5; // seconds
 const TRAP_REVEAL_DURATION = 3; // seconds
@@ -736,7 +736,7 @@ class CaitlynAI {
     this.survived = false;
     this.tookDamage = false;
     // In CaitlynAI constructor, add E ability state
-    this.eCooldown = 0;
+    this.eCooldown = 16;
     this.eActive = false;
     this.eSlowTimer = 0;
     this.eSlowedBy = null;
@@ -3960,6 +3960,61 @@ let netProjectiles = [];
 
 // Add global array for turret laser projectiles
 let turretLaserProjectiles = [];
+
+const E_SLOW_AMOUNT = 0.5; // 50% slow
+
+// NetProjectile class
+class NetProjectile {
+  constructor(owner, x, y, angle) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.speed = 1000 * GAME_UNIT_TO_PX;
+    this.range = 750 * GAME_UNIT_TO_PX;
+    this.distanceTraveled = 0;
+    this.radius = 12;
+    this.alive = true;
+  }
+  update(delta, caitlyns) {
+    if (!this.alive) return;
+    const dx = Math.cos(this.angle) * this.speed * delta;
+    const dy = Math.sin(this.angle) * this.speed * delta;
+    this.x += dx;
+    this.y += dy;
+    this.distanceTraveled += Math.hypot(dx, dy);
+    if (this.distanceTraveled > this.range) {
+      this.alive = false;
+      return;
+    }
+    // Hit detection
+    for (const c of caitlyns) {
+      if (c === this.owner || c.hp <= 0 || c.team === this.owner.team) continue;
+      if (Math.hypot(c.x - this.x, c.y - this.y) < this.radius + CAITLYN_RADIUS) {
+        // Apply magic damage and slow
+        c.hp -= 80; // base magic damage
+        c.eSlowTimer = 1;
+        c.eSlowedBy = this.owner;
+        this.alive = false;
+        break;
+      }
+    }
+  }
+  draw() {
+    if (!this.alive) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#00eaff';
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#2196f3';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 
 // Function to get available turrets for a team (turrets that can be targeted)
 function getAvailableTurrets(attackingTeam) {
