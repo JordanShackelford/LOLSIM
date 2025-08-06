@@ -4573,13 +4573,15 @@ function gameLoop(timestamp) {
           `;
       }
 
-      let itemsDiv = document.getElementById('items');
-      if (!itemsDiv) {
-            itemsDiv = document.createElement('div');
-            itemsDiv.id = 'items';
-            uiDiv.appendChild(itemsDiv);
+      if (caitlyns.length > 0) {
+        let itemsDiv = document.getElementById('items');
+        if (!itemsDiv) {
+              itemsDiv = document.createElement('div');
+              itemsDiv.id = 'items';
+              uiDiv.appendChild(itemsDiv);
+        }
+        itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       }
-      itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       // Team metrics
       let teamWins = [0, 0];
       let teamAvgDPM = [0, 0];
@@ -4741,13 +4743,15 @@ function gameLoop(timestamp) {
           `;
       }
 
-      let itemsDiv = document.getElementById('items');
-      if (!itemsDiv) {
-            itemsDiv = document.createElement('div');
-            itemsDiv.id = 'items';
-            uiDiv.appendChild(itemsDiv);
+      if (caitlyns.length > 0) {
+        let itemsDiv = document.getElementById('items');
+        if (!itemsDiv) {
+              itemsDiv = document.createElement('div');
+              itemsDiv.id = 'items';
+              uiDiv.appendChild(itemsDiv);
+        }
+        itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       }
-      itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       // Team metrics
       let teamWins = [0, 0];
       let teamAvgDPM = [0, 0];
@@ -4909,13 +4913,15 @@ function gameLoop(timestamp) {
           `;
       }
 
-      let itemsDiv = document.getElementById('items');
-      if (!itemsDiv) {
-            itemsDiv = document.createElement('div');
-            itemsDiv.id = 'items';
-            uiDiv.appendChild(itemsDiv);
+      if (caitlyns.length > 0) {
+        let itemsDiv = document.getElementById('items');
+        if (!itemsDiv) {
+              itemsDiv = document.createElement('div');
+              itemsDiv.id = 'items';
+              uiDiv.appendChild(itemsDiv);
+        }
+        itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       }
-      itemsDiv.innerHTML = caitlyns[0].items.map(item => `<img src="${item.icon}" width="32" height="32">`).join(' ');
       // Team metrics
       let teamWins = [0, 0];
       let teamAvgDPM = [0, 0];
