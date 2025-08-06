@@ -4560,19 +4560,17 @@ function gameLoop(timestamp) {
         }
       }
 
-      if (caitlyns.length > 0) {
-        let buffsDiv = document.getElementById('buffs');
-        if (!buffsDiv) {
-            buffsDiv = document.createElement('div');
-            buffsDiv.id = 'buffs';
-            uiDiv.appendChild(buffsDiv);
-        }
-        if (caitlyns[0]) {
-            buffsDiv.innerHTML = `
-              Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
-              Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
-            `;
-        }
+      let buffsDiv = document.getElementById('buffs');
+      if (!buffsDiv) {
+          buffsDiv = document.createElement('div');
+          buffsDiv.id = 'buffs';
+          uiDiv.appendChild(buffsDiv);
+      }
+      if (caitlyns.length > 0 && caitlyns[0]) {
+          buffsDiv.innerHTML = `
+            Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
+            Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
+          `;
       }
 
       let itemsDiv = document.getElementById('items');
@@ -4730,19 +4728,17 @@ function gameLoop(timestamp) {
         }
       }
 
-      if (caitlyns.length > 0) {
-        let buffsDiv = document.getElementById('buffs');
-        if (!buffsDiv) {
-            buffsDiv = document.createElement('div');
-            buffsDiv.id = 'buffs';
-            uiDiv.appendChild(buffsDiv);
-        }
-        if (caitlyns[0]) {
-            buffsDiv.innerHTML = `
-              Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
-              Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
-            `;
-        }
+      let buffsDiv = document.getElementById('buffs');
+      if (!buffsDiv) {
+          buffsDiv = document.createElement('div');
+          buffsDiv.id = 'buffs';
+          uiDiv.appendChild(buffsDiv);
+      }
+      if (caitlyns.length > 0 && caitlyns[0]) {
+          buffsDiv.innerHTML = `
+            Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
+            Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
+          `;
       }
 
       let itemsDiv = document.getElementById('items');
@@ -4900,19 +4896,17 @@ function gameLoop(timestamp) {
         }
       }
 
-      if (caitlyns.length > 0) {
-        let buffsDiv = document.getElementById('buffs');
-        if (!buffsDiv) {
-            buffsDiv = document.createElement('div');
-            buffsDiv.id = 'buffs';
-            uiDiv.appendChild(buffsDiv);
-        }
-        if (caitlyns[0]) {
-            buffsDiv.innerHTML = `
-              Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
-              Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
-            `;
-        }
+      let buffsDiv = document.getElementById('buffs');
+      if (!buffsDiv) {
+          buffsDiv = document.createElement('div');
+          buffsDiv.id = 'buffs';
+          uiDiv.appendChild(buffsDiv);
+      }
+      if (caitlyns.length > 0 && caitlyns[0]) {
+          buffsDiv.innerHTML = `
+            Blue Buff: ${caitlyns[0].blueBuffTimer > 0 ? caitlyns[0].blueBuffTimer.toFixed(1) : 'Inactive'}<br>
+            Red Buff: ${caitlyns[0].redBuffTimer > 0 ? caitlyns[0].redBuffTimer.toFixed(1) : 'Inactive'}<br>
+          `;
       }
 
       let itemsDiv = document.getElementById('items');
