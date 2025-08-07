@@ -1035,7 +1035,7 @@ class CaitlynAI {
   }
 
   update(others, delta, projectiles, minions, turrets) {
-    const { target, attack, useQ, buy, recall, useE, useR, qAngle, rTarget } = this.decide(others, minions, turrets);
+    const { attack, useQ, buy, recall, useE, useR, qAngle, rTarget } = this.decide(others, minions, turrets);
     const now = performance.now() / 1000;
     if (this.dead) {
       if (!allowRespawn) {
