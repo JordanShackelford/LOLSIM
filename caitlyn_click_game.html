@@ -1031,7 +1031,7 @@ class CaitlynAI {
     // (Removed forced minion targeting for first 300 generations)
     // End removed block
     
-    return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, useR: useR > 0.5, rTarget, qAngle };
+    return { moveX, moveY, target, attack: attack > -0.5, useQ: useQ > 0.5, buy: buy > 0.5, recall: recall > 0.5, trap: trap > 0.5, useE: useE > 0.5, useR: useR > 0.5, qAngle, rTarget };
   }
 
   update(others, delta, projectiles, minions, turrets) {
@@ -1230,7 +1230,7 @@ class CaitlynAI {
         }
     }
 
-    if (trap > 0.5 && this.wCharges > 0) {
+    if (this.trapIntent > 0.5 && this.wCharges > 0) {
         this.traps.push(new Trap(this, this.x, this.y));
         this.wCharges--;
     }
@@ -1671,8 +1671,8 @@ class CaitlynAI {
         }
       } else {
         // No target: wander using neural net output, but keep moving
-        moveVecX = moveX + avoidTurretX * 0.7 + avoidMinionX * 0.2;
-        moveVecY = moveY + avoidTurretY * 0.7 + avoidMinionY * 0.2;
+        moveVecX = this.moveX + avoidTurretX * 0.7 + avoidMinionX * 0.2;
+        moveVecY = this.moveY + avoidTurretY * 0.7 + avoidMinionX * 0.2;
       }
       // Normalize movement vector
       const mlen = Math.hypot(moveVecX, moveVecY);
@@ -1729,8 +1729,8 @@ class CaitlynAI {
       if (this.eSlowTimer <= 0) this.eSlowedBy = null;
     }
     // E (Net) Logic
-    if (useE > 0.5 && this.eCooldown <= 0) {
-        let angle = qAngle * Math.PI;
+    if (this.useEIntent > 0.5 && this.eCooldown <= 0) {
+        let angle = this.qAngle * Math.PI;
         projectiles.push(new NetProjectile(this, this.x, this.y, angle, this.eRange, this.eSpeed));
         this.x -= Math.cos(angle) * 100;
         this.y -= Math.sin(angle) * 100;
@@ -1751,7 +1751,7 @@ class CaitlynAI {
       return; // Can't do anything else while channeling
     }
     // R (Ultimate) Logic
-    if (useR > 0.5 && this.rCooldown <= 0) {
+    if (this.useRIntent > 0.5 && this.rCooldown <= 0) {
         let enemiesInRange = others.filter(o => o.team !== this.team && o.hp > 0 && Math.hypot(this.x - o.x, this.y - o.y) < this.rRange);
         if (enemiesInRange.length > 0) {
             let target = enemiesInRange.reduce((lowest, enemy) => enemy.hp < lowest.hp ? enemy : lowest, enemiesInRange[0]);
